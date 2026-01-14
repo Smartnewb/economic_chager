@@ -104,32 +104,32 @@ export default function EconomicRadarChart({
     );
 
     return (
-        <div className="bg-black/40 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-            {/* Header */}
+        <div className="bg-black/40 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/10">
+            {/* Header - Responsive */}
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-4xl">{countryFlag}</span>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-2xl sm:text-4xl">{countryFlag}</span>
                     <div>
-                        <h3 className="text-xl font-bold text-white">{countryName}</h3>
-                        <p className="text-sm text-gray-400">Economic Health Index</p>
+                        <h3 className="text-base sm:text-xl font-bold text-white">{countryName}</h3>
+                        <p className="text-xs sm:text-sm text-gray-400">Economic Health Index</p>
                     </div>
                 </div>
                 {/* Overall Grade */}
                 <div className="text-center">
                     <div
-                        className="text-5xl font-black"
+                        className="text-3xl sm:text-5xl font-black"
                         style={{ color: gradeColor }}
                     >
                         {overallGrade}
                     </div>
-                    <div className="text-sm text-gray-400">
+                    <div className="text-xs sm:text-sm text-gray-400">
                         Score: {overallScore}/100
                     </div>
                 </div>
             </div>
 
-            {/* Radar Chart */}
-            <div className="h-[350px] relative">
+            {/* Radar Chart - Responsive Height */}
+            <div className="h-[250px] sm:h-[300px] md:h-[350px] relative">
                 <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
                         <PolarGrid stroke="#374151" />
@@ -166,28 +166,28 @@ export default function EconomicRadarChart({
                 </div>
             </div>
 
-            {/* Metric breakdown */}
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            {/* Metric breakdown - Responsive Grid */}
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                 {Object.entries(metrics).map(([key, value]) => {
                     const info = METRIC_LABELS[key as keyof EconomicMetrics];
                     const score = Math.round(value);
                     return (
                         <div
                             key={key}
-                            className="p-3 bg-white/5 rounded-lg"
+                            className="p-2 sm:p-3 bg-white/5 rounded-lg"
                         >
-                            <div className="flex items-center gap-2 mb-1">
-                                <span>{info.icon}</span>
-                                <span className="text-xs text-gray-400">{info.label}</span>
+                            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                                <span className="text-sm sm:text-base">{info.icon}</span>
+                                <span className="text-[10px] sm:text-xs text-gray-400">{info.label}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div
-                                    className="text-lg font-bold"
+                                    className="text-base sm:text-lg font-bold"
                                     style={{ color: getScoreColor(score) }}
                                 >
                                     {score}
                                 </div>
-                                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                <div className="flex-1 h-1 sm:h-1.5 bg-white/10 rounded-full overflow-hidden">
                                     <div
                                         className="h-full rounded-full transition-all duration-500"
                                         style={{
@@ -202,18 +202,18 @@ export default function EconomicRadarChart({
                 })}
             </div>
 
-            {/* Legend */}
-            <div className="mt-4 flex justify-center gap-4 text-xs">
+            {/* Legend - Responsive */}
+            <div className="mt-3 sm:mt-4 flex flex-wrap justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs">
                 <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500" />
                     <span className="text-gray-400">80+ Strong</span>
                 </div>
                 <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-yellow-500" />
                     <span className="text-gray-400">40-79 Moderate</span>
                 </div>
                 <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500" />
                     <span className="text-gray-400">&lt;40 Weak</span>
                 </div>
             </div>

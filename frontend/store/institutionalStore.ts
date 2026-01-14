@@ -84,7 +84,7 @@ export const useInstitutionalStore = create<InstitutionalStore>((set, get) => ({
         set({ isLoadingIMF: true, error: null, selectedCountry: countryCode });
 
         try {
-            const response = await fetch(`http://localhost:8001/api/institutional/imf/${countryCode}`);
+            const response = await fetch(`http://localhost:8000/api/institutional/imf/${countryCode}`);
             if (!response.ok) throw new Error("Failed to fetch IMF data");
 
             const data = await response.json();
@@ -99,7 +99,7 @@ export const useInstitutionalStore = create<InstitutionalStore>((set, get) => ({
         set({ isLoadingReportCard: true, error: null });
 
         try {
-            const response = await fetch(`http://localhost:8001/api/institutional/report-card/${countryCode}`);
+            const response = await fetch(`http://localhost:8000/api/institutional/report-card/${countryCode}`);
             if (!response.ok) throw new Error("Failed to fetch report card");
 
             const data = await response.json();
@@ -126,7 +126,7 @@ export const useInstitutionalStore = create<InstitutionalStore>((set, get) => ({
         }, 3000);
 
         try {
-            const response = await fetch("http://localhost:8001/api/analyze/institutional", {
+            const response = await fetch("http://localhost:8000/api/analyze/institutional", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

@@ -592,7 +592,7 @@ export const useEconomyStore = create<EconomyStore>((set, get) => ({
 
         try {
             // First, check if there's a cached analysis for today
-            const cacheResponse = await fetch(`http://localhost:8001/api/analyze/economy/cached?language=${language}`);
+            const cacheResponse = await fetch(`http://localhost:8000/api/analyze/economy/cached?language=${language}`);
             if (cacheResponse.ok) {
                 const cacheData = await cacheResponse.json();
                 if (cacheData.cached && cacheData.result) {
@@ -607,7 +607,7 @@ export const useEconomyStore = create<EconomyStore>((set, get) => ({
             }
 
             // No cache available, request new analysis
-            const response = await fetch("http://localhost:8001/api/analyze/economy", {
+            const response = await fetch("http://localhost:8000/api/analyze/economy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

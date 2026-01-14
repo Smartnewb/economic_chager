@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+__pycache__
+*.pyc
+.venv
+venv
+
+# Build outputs
+.next
+.turbo
+out
+dist
+build
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Environment files (copy .env.example to .env)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+*.md
+!README.md
+.claude*
+ralph-claude-code/
+progress.json
+status.json

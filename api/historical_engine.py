@@ -4,6 +4,20 @@ Historical Pattern Matching Engine - "The Mirror of History"
 
 This module finds the closest historical parallels to current market conditions
 by comparing key economic indicators across 100+ years of financial history.
+
+DATA SOURCES:
+- CAPE Ratio: Robert Shiller (Yale) - https://www.multpl.com/shiller-pe
+- Interest Rates: Federal Reserve Economic Data (FRED)
+- Inflation: Bureau of Labor Statistics (BLS) via FRED
+- Unemployment: Bureau of Labor Statistics via FRED
+- Historical Events: NBER recession dating, Federal Reserve archives
+
+NOTES:
+- Historical events database is curated static data for educational reference
+- Forward returns are calculated from S&P 500 total return data
+- Similarity matching uses Euclidean distance across normalized indicators
+
+Last Updated: 2026-01-15
 """
 
 import os

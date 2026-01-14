@@ -656,6 +656,212 @@ class MacroFetcher:
 
         return "\n".join(context_parts)
 
+    def fetch_historical_series(
+        self,
+        series_id: str,
+        period: str = "1Y",
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> list:
+        """
+        Fetch historical data for a FRED series.
+
+        Args:
+            series_id: FRED series identifier (e.g., 'DGS10' for 10Y Treasury)
+            period: Time period - '1M', '3M', '1Y', '5Y', '10Y', 'MAX'
+            start_date: Optional start date (YYYY-MM-DD), overrides period
+            end_date: Optional end date (YYYY-MM-DD)
+
+        Returns:
+            List of dicts with {date, value} entries
+        """
+        # Map series names to FRED IDs
+        series_map = {
+            'treasury_10y': 'DGS10',
+            'treasury_2y': 'DGS2',
+            'fed_funds': 'FEDFUNDS',
+            'unemployment': 'UNRATE',
+            'cpi': 'CPIAUCSL',
+            'm2': 'M2SL',
+            'vix': 'VIXCLS',
+            'credit_spread': 'BAMLC0A0CM',
+            'yield_spread': None,  # Calculated field
+        }
+
+        # Resolve series ID
+        fred_id = series_map.get(series_id, series_id)
+
+        # Calculate date range from period
+        if not start_date:
+            period_days = {
+                '1M': 30,
+                '3M': 90,
+                '1Y': 365,
+                '5Y': 365 * 5,
+                '10Y': 365 * 10,
+                'MAX': 365 * 50
+            }
+            days = period_days.get(period, 365)
+            start_dt = datetime.now() - timedelta(days=days)
+            start_date = start_dt.strftime('%Y-%m-%d')
+
+        if not end_date:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+
+        # Handle calculated series (yield_spread)
+        if series_id == 'yield_spread':
+            return self._fetch_yield_spread_history(start_date, end_date)
+
+        # Try FRED API
+        if self.api_key and REQUESTS_AVAILABLE:
+            try:
+                params = {
+                    "series_id": fred_id,
+                    "api_key": self.api_key,
+                    "file_type": "json",
+                    "observation_start": start_date,
+                    "observation_end": end_date,
+                    "sort_order": "asc",
+                }
+
+                response = requests.get(self.base_url, params=params, timeout=15)
+                response.raise_for_status()
+
+                data = response.json()
+                observations = data.get("observations", [])
+
+                result = []
+                for obs in observations:
+                    try:
+                        value = float(obs["value"])
+                        result.append({
+                            "date": obs["date"],
+                            "value": value
+                        })
+                    except (ValueError, KeyError):
+                        continue
+
+                if result:
+                    # Cache the result
+                    self._cache_historical(series_id, period, result)
+                    return result
+            except Exception as e:
+                print(f"[WARN] Failed to fetch FRED series {fred_id}: {e}")
+
+        # Try cached data
+        cached = self._get_cached_historical(series_id, period)
+        if cached:
+            return cached
+
+        # Return mock data
+        return self._generate_mock_historical(series_id, start_date, end_date)
+
+    def _fetch_yield_spread_history(self, start_date: str, end_date: str) -> list:
+        """Calculate historical 10Y-2Y yield spread."""
+        try:
+            # Fetch both series
+            params_10y = {
+                "series_id": "DGS10",
+                "api_key": self.api_key,
+                "file_type": "json",
+                "observation_start": start_date,
+                "observation_end": end_date,
+            }
+            params_2y = {
+                "series_id": "DGS2",
+                "api_key": self.api_key,
+                "file_type": "json",
+                "observation_start": start_date,
+                "observation_end": end_date,
+            }
+
+            response_10y = requests.get(self.base_url, params=params_10y, timeout=15)
+            response_2y = requests.get(self.base_url, params=params_2y, timeout=15)
+
+            data_10y = {obs["date"]: float(obs["value"]) for obs in response_10y.json().get("observations", []) if obs["value"] != "."}
+            data_2y = {obs["date"]: float(obs["value"]) for obs in response_2y.json().get("observations", []) if obs["value"] != "."}
+
+            result = []
+            for dt in sorted(data_10y.keys()):
+                if dt in data_2y:
+                    spread = data_10y[dt] - data_2y[dt]
+                    result.append({"date": dt, "value": round(spread, 3)})
+
+            return result
+        except Exception as e:
+            print(f"[WARN] Failed to calculate yield spread history: {e}")
+            return self._generate_mock_historical('yield_spread', start_date, end_date)
+
+    def _cache_historical(self, series_id: str, period: str, data: list) -> None:
+        """Cache historical data."""
+        cache_file = self.cache_dir / f"historical_{series_id}_{period}.json"
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump({
+                    "timestamp": datetime.now().isoformat(),
+                    "data": data
+                }, f)
+        except Exception:
+            pass
+
+    def _get_cached_historical(self, series_id: str, period: str) -> Optional[list]:
+        """Get cached historical data if recent enough."""
+        cache_file = self.cache_dir / f"historical_{series_id}_{period}.json"
+        try:
+            if cache_file.exists():
+                with open(cache_file, 'r') as f:
+                    cached = json.load(f)
+                    # Check if cache is recent (within 6 hours)
+                    timestamp = datetime.fromisoformat(cached["timestamp"])
+                    if datetime.now() - timestamp < timedelta(hours=6):
+                        return cached.get("data")
+        except Exception:
+            pass
+        return None
+
+    def _generate_mock_historical(self, series_id: str, start_date: str, end_date: str) -> list:
+        """Generate mock historical data."""
+        import random
+
+        # Base values and ranges for different series
+        series_config = {
+            'treasury_10y': {'base': 4.5, 'variance': 0.3, 'trend': 0.001},
+            'treasury_2y': {'base': 4.8, 'variance': 0.25, 'trend': 0.002},
+            'fed_funds': {'base': 5.25, 'variance': 0.1, 'trend': 0},
+            'unemployment': {'base': 4.1, 'variance': 0.3, 'trend': 0.002},
+            'cpi': {'base': 300, 'variance': 2, 'trend': 0.2},
+            'm2': {'base': 21000, 'variance': 100, 'trend': 10},
+            'vix': {'base': 18, 'variance': 5, 'trend': 0},
+            'credit_spread': {'base': 1.2, 'variance': 0.3, 'trend': 0},
+            'yield_spread': {'base': -0.3, 'variance': 0.2, 'trend': 0.002},
+        }
+
+        config = series_config.get(series_id, {'base': 100, 'variance': 5, 'trend': 0.1})
+
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        days = (end_dt - start_dt).days
+
+        result = []
+        value = config['base']
+
+        for i in range(0, days, 7 if days > 365 else 1):  # Weekly for long periods
+            current_date = start_dt + timedelta(days=i)
+            if current_date > end_dt:
+                break
+
+            # Random walk with trend
+            change = random.gauss(config['trend'], config['variance'] / 10)
+            value += change
+            value = max(0, value)  # Prevent negative values for most series
+
+            result.append({
+                "date": current_date.strftime('%Y-%m-%d'),
+                "value": round(value, 3)
+            })
+
+        return result
+
 
 # Singleton instance for easy import
 _macro_fetcher_instance: Optional[MacroFetcher] = None

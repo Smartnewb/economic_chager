@@ -100,6 +100,7 @@ interface WhaleState {
     selectedSymbolTrades: InsiderTrade[];
     gurus: Guru[];
     selectedGuruHoldings: GuruHolding[];
+    allGuruHoldings: Record<string, GuruHolding[]>; // All gurus holdings for unified view
     whaleAlerts: WhaleAlert[];
     consensusPicks: ConsensusPick[];
     clusterActivity: ClusterActivity | null;
@@ -111,6 +112,7 @@ interface WhaleState {
     isLoadingGuru: boolean;
     isLoadingAlerts: boolean;
     isLoadingRadar: boolean;
+    isLoadingAll: boolean; // For parallel fetch
     selectedSymbol: string | null;
     selectedGuru: string | null;
     viewMode: "radar" | "insider" | "guru" | "consensus";
@@ -122,9 +124,11 @@ interface WhaleState {
     showAnalysisPanel: boolean;
 
     // Actions
+    fetchAllWhaleData: () => Promise<void>; // NEW: Parallel fetch all data
     fetchInsiderTrades: (symbol?: string, limit?: number) => Promise<void>;
     fetchGuruList: () => Promise<void>;
     fetchGuruHoldings: (guruId: string, limit?: number) => Promise<void>;
+    fetchAllGuruHoldings: () => Promise<void>; // NEW: Fetch all gurus at once
     fetchWhaleAlerts: (symbols?: string[], limit?: number) => Promise<void>;
     fetchConsensusPicks: (topN?: number) => Promise<void>;
     fetchClusterActivity: (symbol: string, days?: number) => Promise<void>;
@@ -138,7 +142,7 @@ interface WhaleState {
     reset: () => void;
 }
 
-const API_BASE = "http://localhost:8001";
+const API_BASE = "http://localhost:8000";
 
 export const useWhaleStore = create<WhaleState>((set, get) => ({
     // Initial Data State
@@ -146,6 +150,7 @@ export const useWhaleStore = create<WhaleState>((set, get) => ({
     selectedSymbolTrades: [],
     gurus: [],
     selectedGuruHoldings: [],
+    allGuruHoldings: {},
     whaleAlerts: [],
     consensusPicks: [],
     clusterActivity: null,
@@ -157,6 +162,7 @@ export const useWhaleStore = create<WhaleState>((set, get) => ({
     isLoadingGuru: false,
     isLoadingAlerts: false,
     isLoadingRadar: false,
+    isLoadingAll: false,
     selectedSymbol: null,
     selectedGuru: null,
     viewMode: "radar",
@@ -166,6 +172,147 @@ export const useWhaleStore = create<WhaleState>((set, get) => ({
     analysisResult: null,
     analysisError: null,
     showAnalysisPanel: false,
+
+    // Fetch ALL whale data in parallel for optimal performance
+    fetchAllWhaleData: async () => {
+        set({ isLoadingAll: true });
+
+        try {
+            // Parallel fetch all data sources
+            const [radarRes, insiderRes, guruRes, alertsRes, consensusRes] = await Promise.allSettled([
+                fetch(`${API_BASE}/api/whale/radar`),
+                fetch(`${API_BASE}/api/whale/insider?limit=50`),
+                fetch(`${API_BASE}/api/whale/guru`),
+                fetch(`${API_BASE}/api/whale/alerts?limit=20`),
+                fetch(`${API_BASE}/api/whale/consensus?top_n=10`),
+            ]);
+
+            // Process radar data
+            if (radarRes.status === "fulfilled" && radarRes.value.ok) {
+                const data = await radarRes.value.json();
+                const blips: RadarBlip[] = (data.blips || []).map((b: Record<string, unknown>, idx: number) => ({
+                    symbol: b.symbol,
+                    type: b.type,
+                    signal: b.signal,
+                    magnitude: b.magnitude || 0.5,
+                    angle: b.angle ?? (idx * 360) / (data.blips?.length || 1),
+                    distance: b.distance || Math.random() * 0.8 + 0.1,
+                    details: b.details || "",
+                }));
+                set({ radarBlips: blips });
+            }
+
+            // Process insider trades
+            if (insiderRes.status === "fulfilled" && insiderRes.value.ok) {
+                const data = await insiderRes.value.json();
+                const trades: InsiderTrade[] = (data.trades || []).map((t: Record<string, unknown>) => ({
+                    symbol: t.symbol,
+                    companyName: t.company_name,
+                    reporterName: t.reporter_name,
+                    reporterTitle: t.reporter_title,
+                    transactionType: t.transaction_type,
+                    transactionDate: t.transaction_date,
+                    sharesTransacted: t.shares_transacted,
+                    price: t.price,
+                    totalValue: t.total_value,
+                    isBuy: t.is_buy,
+                    signalStrength: t.signal_strength,
+                }));
+                set({ insiderTrades: trades });
+            }
+
+            // Process guru list
+            if (guruRes.status === "fulfilled" && guruRes.value.ok) {
+                const data = await guruRes.value.json();
+                const gurus: Guru[] = (data.gurus || []).map((g: Record<string, unknown>) => ({
+                    id: g.id,
+                    name: g.name,
+                    manager: g.manager,
+                    avatar: g.avatar,
+                }));
+                set({ gurus });
+
+                // Fetch all guru holdings in parallel
+                get().fetchAllGuruHoldings();
+            }
+
+            // Process whale alerts
+            if (alertsRes.status === "fulfilled" && alertsRes.value.ok) {
+                const data = await alertsRes.value.json();
+                const alerts: WhaleAlert[] = (data.alerts || []).map((a: Record<string, unknown>) => ({
+                    alertType: a.alert_type,
+                    symbol: a.symbol,
+                    headline: a.headline,
+                    description: a.description,
+                    signal: a.signal,
+                    magnitude: a.magnitude,
+                    timestamp: a.timestamp,
+                    source: a.source,
+                }));
+                set({ whaleAlerts: alerts });
+            }
+
+            // Process consensus picks
+            if (consensusRes.status === "fulfilled" && consensusRes.value.ok) {
+                const data = await consensusRes.value.json();
+                const picks: ConsensusPick[] = (data.consensus_picks || []).map((p: Record<string, unknown>) => ({
+                    symbol: p.symbol,
+                    guruCount: p.guru_count,
+                    gurus: p.gurus as string[],
+                    totalValue: p.total_value,
+                }));
+                set({ consensusPicks: picks });
+            }
+
+        } catch (error) {
+            console.error("Error fetching all whale data:", error);
+        } finally {
+            set({ isLoadingAll: false });
+        }
+    },
+
+    // Fetch all guru holdings at once for unified view
+    fetchAllGuruHoldings: async () => {
+        const { gurus } = get();
+        if (gurus.length === 0) return;
+
+        try {
+            const holdingsPromises = gurus.map(async (guru) => {
+                try {
+                    const response = await fetch(`${API_BASE}/api/whale/guru/${guru.id}?limit=10`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const holdings: GuruHolding[] = (data.holdings || []).map((h: Record<string, unknown>) => ({
+                            symbol: h.symbol,
+                            companyName: h.company_name,
+                            shares: h.shares,
+                            value: h.value,
+                            weightPercent: h.weight_percent,
+                            changeType: h.change_type,
+                            changeShares: h.change_shares,
+                            changePercent: h.change_percent,
+                            quarter: h.quarter,
+                            filingDate: h.filing_date,
+                        }));
+                        return { guruId: guru.id, holdings };
+                    }
+                    return { guruId: guru.id, holdings: [] };
+                } catch {
+                    return { guruId: guru.id, holdings: [] };
+                }
+            });
+
+            const results = await Promise.all(holdingsPromises);
+            const allHoldings: Record<string, GuruHolding[]> = {};
+            results.forEach((result) => {
+                allHoldings[result.guruId] = result.holdings;
+            });
+
+            set({ allGuruHoldings: allHoldings });
+        } catch (error) {
+            console.error("Error fetching all guru holdings:", error);
+        }
+    },
 
     // Fetch all insider trades or for a specific symbol
     fetchInsiderTrades: async (symbol?: string, limit = 50) => {
@@ -506,6 +653,7 @@ export const useWhaleStore = create<WhaleState>((set, get) => ({
             selectedSymbolTrades: [],
             gurus: [],
             selectedGuruHoldings: [],
+            allGuruHoldings: {},
             whaleAlerts: [],
             consensusPicks: [],
             clusterActivity: null,
@@ -515,6 +663,7 @@ export const useWhaleStore = create<WhaleState>((set, get) => ({
             isLoadingGuru: false,
             isLoadingAlerts: false,
             isLoadingRadar: false,
+            isLoadingAll: false,
             selectedSymbol: null,
             selectedGuru: null,
             viewMode: "radar",

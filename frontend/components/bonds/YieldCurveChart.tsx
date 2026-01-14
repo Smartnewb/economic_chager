@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
     LineChart,
     Line,
@@ -36,6 +37,7 @@ const maturityOrder: Record<string, number> = {
 
 export default function YieldCurveChart() {
     const { currentCurve, previousCurve, isLoadingData, metrics } = useBondStore();
+    const [showComparison, setShowComparison] = useState(true);
 
     if (isLoadingData) {
         return (
@@ -75,29 +77,48 @@ export default function YieldCurveChart() {
     const isInverted = metrics?.isInverted || false;
 
     return (
-        <div className="w-full bg-black/30 rounded-2xl border border-white/10 p-6 backdrop-blur-sm">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+        <div className="w-full bg-black/30 rounded-2xl border border-white/10 p-4 sm:p-6 backdrop-blur-sm">
+            {/* Header - Responsive */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
                 <div>
-                    <h2 className="text-xl font-bold text-white">US Treasury Yield Curve</h2>
-                    <p className="text-sm text-gray-400 mt-1">
-                        Current vs 30 days ago
+                    <h2 className="text-lg sm:text-xl font-bold text-white">US Treasury Yield Curve</h2>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-1">
+                        {showComparison ? "Current vs 30 days ago" : "Current yield curve"}
                     </p>
                 </div>
-                {isInverted && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-lg animate-pulse">
-                        <span className="text-red-400 text-lg">⚠️</span>
-                        <span className="text-red-400 font-semibold">YIELD CURVE INVERTED</span>
-                    </div>
-                )}
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    {/* Historical Comparison Toggle */}
+                    <button
+                        onClick={() => setShowComparison(!showComparison)}
+                        className={`
+                            flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border transition-all duration-200 touch-manipulation
+                            ${showComparison
+                                ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-400"
+                                : "bg-white/5 border-white/20 text-gray-400 hover:bg-white/10"
+                            }
+                        `}
+                    >
+                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-xs sm:text-sm font-medium">30D Compare</span>
+                    </button>
+
+                    {isInverted && (
+                        <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-red-500/20 border border-red-500/50 rounded-lg animate-pulse">
+                            <span className="text-red-400 text-base sm:text-lg">⚠️</span>
+                            <span className="text-red-400 font-semibold text-xs sm:text-sm">INVERTED</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Chart */}
-            <div className="w-full h-[350px]">
+            {/* Chart - Responsive Height */}
+            <div className="w-full h-[250px] sm:h-[300px] md:h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                         data={chartData}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
                     >
                         <CartesianGrid
                             strokeDasharray="3 3"
@@ -133,12 +154,14 @@ export default function YieldCurveChart() {
                                 ];
                             }}
                         />
-                        <Legend
-                            formatter={(value) =>
-                                value === "current" ? "Today" : "30 Days Ago"
-                            }
-                            wrapperStyle={{ paddingTop: 20 }}
-                        />
+                        {showComparison && (
+                            <Legend
+                                formatter={(value) =>
+                                    value === "current" ? "Today" : "30 Days Ago"
+                                }
+                                wrapperStyle={{ paddingTop: 20 }}
+                            />
+                        )}
 
                         {/* Reference line at 2Y-10Y spread area */}
                         <ReferenceLine
@@ -153,17 +176,19 @@ export default function YieldCurveChart() {
                             }}
                         />
 
-                        {/* Previous Month Curve */}
-                        <Line
-                            type="monotone"
-                            dataKey="previous"
-                            stroke="#6B7280"
-                            strokeWidth={2}
-                            strokeDasharray="5 5"
-                            dot={{ fill: "#6B7280", strokeWidth: 0, r: 3 }}
-                            activeDot={{ r: 5, fill: "#6B7280" }}
-                            name="previous"
-                        />
+                        {/* Previous Month Curve - conditionally rendered */}
+                        {showComparison && (
+                            <Line
+                                type="monotone"
+                                dataKey="previous"
+                                stroke="#6B7280"
+                                strokeWidth={2}
+                                strokeDasharray="5 5"
+                                dot={{ fill: "#6B7280", strokeWidth: 0, r: 3 }}
+                                activeDot={{ r: 5, fill: "#6B7280" }}
+                                name="previous"
+                            />
+                        )}
 
                         {/* Current Curve */}
                         <Line
@@ -188,24 +213,24 @@ export default function YieldCurveChart() {
                 </ResponsiveContainer>
             </div>
 
-            {/* Key Metrics Footer */}
-            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/10">
+            {/* Key Metrics Footer - Responsive */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/10">
                 <div className="text-center">
-                    <p className="text-gray-400 text-sm">2-Year Yield</p>
-                    <p className="text-2xl font-bold text-blue-400">
+                    <p className="text-gray-400 text-[10px] sm:text-sm">2-Year Yield</p>
+                    <p className="text-lg sm:text-2xl font-bold text-blue-400">
                         {metrics?.yield2Y.toFixed(2)}%
                     </p>
                 </div>
                 <div className="text-center">
-                    <p className="text-gray-400 text-sm">10-Year Yield</p>
-                    <p className="text-2xl font-bold text-cyan-400">
+                    <p className="text-gray-400 text-[10px] sm:text-sm">10-Year Yield</p>
+                    <p className="text-lg sm:text-2xl font-bold text-cyan-400">
                         {metrics?.yield10Y.toFixed(2)}%
                     </p>
                 </div>
                 <div className="text-center">
-                    <p className="text-gray-400 text-sm">10Y-2Y Spread</p>
+                    <p className="text-gray-400 text-[10px] sm:text-sm">10Y-2Y Spread</p>
                     <p
-                        className={`text-2xl font-bold ${
+                        className={`text-lg sm:text-2xl font-bold ${
                             (metrics?.spread || 0) < 0 ? "text-red-400" : "text-green-400"
                         }`}
                     >

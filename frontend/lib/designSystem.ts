@@ -250,7 +250,7 @@ export const navigationItems = [
     description: "Overview of all markets",
   },
   {
-    href: "/",
+    href: "/globe",
     label: "Globe",
     labelKo: "글로벌",
     icon: "🌐",

@@ -362,7 +362,7 @@ export const usePolicyStore = create<PolicyStore>((set, get) => ({
             const nextMeeting = upcomingMeetings[0];
 
             // First, check if there's a cached analysis for today
-            const cacheResponse = await fetch(`http://localhost:8001/api/analyze/policy/cached?language=${language}`);
+            const cacheResponse = await fetch(`http://localhost:8000/api/analyze/policy/cached?language=${language}`);
             if (cacheResponse.ok) {
                 const cacheData = await cacheResponse.json();
                 if (cacheData.cached && cacheData.result) {
@@ -390,7 +390,7 @@ export const usePolicyStore = create<PolicyStore>((set, get) => ({
                 }
             }, 2000);
 
-            const response = await fetch("http://localhost:8001/api/analyze/policy", {
+            const response = await fetch("http://localhost:8000/api/analyze/policy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

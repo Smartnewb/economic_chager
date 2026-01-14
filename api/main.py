@@ -8,17 +8,43 @@ import os
 import json
 from datetime import datetime, date
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+# Look for .env in the parent directory (project root)
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"[INFO] Loaded environment variables from {env_path}")
+else:
+    # Try current directory
+    load_dotenv()
+    print("[WARN] No .env file found in project root, using system environment variables")
+
+# Log API key status (without exposing actual keys)
+if os.environ.get("FMP_API_KEY"):
+    print("[INFO] FMP_API_KEY is configured")
+else:
+    print("[WARN] FMP_API_KEY not found - whale insider trades will use mock data")
+
+if os.environ.get("OPENAI_API_KEY"):
+    print("[INFO] OPENAI_API_KEY is configured")
+else:
+    print("[WARN] OPENAI_API_KEY not found - AI analysis will be limited")
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 from agents import run_board_meeting, run_bond_analysis, run_fx_analysis, run_stock_analysis, run_policy_analysis, run_economy_analysis, run_insight_analysis
 from insight_collector import fetch_rss_feeds, get_mock_insights, get_behavioral_bias, get_all_sources, extract_full_text
 from market_service import get_market_service
+from country_service import country_service
+from logger import api_logger, log_api_call, log_execution_time
+from rate_limiter import rate_limit_middleware, response_cache, rate_limit_analysis
 
 # ============================================
 # ANALYSIS CACHE SYSTEM
@@ -99,6 +125,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting middleware
+app.middleware("http")(rate_limit_middleware)
+
+# Log server startup
+api_logger.info("Insight Flow API starting up")
+
+
+# Dependency for rate-limited analysis endpoints
+async def check_analysis_rate_limit(request: Request):
+    """Dependency to check rate limit for expensive AI analysis endpoints."""
+    rate_limit_analysis(request)
+
 
 class DebateRequest(BaseModel):
     scenario: str
@@ -121,6 +159,39 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+@app.get("/api/health")
+async def api_health():
+    """API health check with cache statistics."""
+    return {
+        "status": "healthy",
+        "cache_stats": response_cache.stats(),
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    """Get detailed cache statistics."""
+    return {
+        "response_cache": response_cache.stats(),
+        "analysis_cache_dir": str(CACHE_DIR),
+        "cached_analyses": len(list(CACHE_DIR.glob("*.json")))
+    }
+
+
+@app.post("/api/cache/clear")
+async def clear_cache(pattern: Optional[str] = None):
+    """Clear cache entries. Optionally filter by pattern."""
+    if pattern:
+        response_cache.invalidate(pattern)
+        api_logger.info(f"Cache invalidated for pattern: {pattern}")
+        return {"message": f"Cache cleared for pattern: {pattern}"}
+    else:
+        response_cache.clear()
+        api_logger.info("Full cache cleared")
+        return {"message": "All cache cleared"}
 
 
 @app.post("/api/debate", response_model=DebateResponse)
@@ -1463,15 +1534,37 @@ COUNTRY_CONFIGS = {
     },
 }
 
+# Country data cache with 1-hour TTL
+_country_data_cache = {}
+_country_cache_expiry = {}
+COUNTRY_CACHE_TTL = 3600  # 1 hour in seconds
+
 
 def generate_country_data(country_code: str) -> dict:
-    """Generate comprehensive country economic data."""
+    """Generate comprehensive country economic data with caching."""
     import random
+    import hashlib
     from datetime import datetime, timedelta
+    import time
+
+    country_code = country_code.upper()
+
+    # Check cache first
+    cache_key = country_code
+    current_time = time.time()
+    if cache_key in _country_data_cache:
+        if current_time < _country_cache_expiry.get(cache_key, 0):
+            return _country_data_cache[cache_key]
 
     config = COUNTRY_CONFIGS.get(country_code.upper())
     if not config:
         return None
+
+    # Use date-based seed for consistent scores within the same day
+    today = datetime.now().strftime("%Y-%m-%d")
+    seed_str = f"{country_code.upper()}_{today}"
+    seed_value = int(hashlib.md5(seed_str.encode()).hexdigest(), 16) % (10 ** 8)
+    random.seed(seed_value)
 
     # Generate FX data
     base_rates = {
@@ -1583,7 +1676,7 @@ def generate_country_data(country_code: str) -> dict:
     else:
         grade = "F"
 
-    return {
+    result = {
         "profile": {
             "code": country_code,
             "name": config["name"],
@@ -1640,14 +1733,26 @@ def generate_country_data(country_code: str) -> dict:
         "overallScore": overall_score,
     }
 
+    # Save to cache with TTL
+    _country_data_cache[cache_key] = result
+    _country_cache_expiry[cache_key] = current_time + COUNTRY_CACHE_TTL
+
+    return result
+
 
 @app.get("/api/country/{country_code}", response_model=CountryDataResponse)
 async def get_country_data(country_code: str):
     """
     Get comprehensive economic data for a specific country.
     Returns aggregated FX, Bond, Stock, and Policy data with overall health score.
+    Uses CountryDataService for real API data with fallback to mock data.
     """
-    data = generate_country_data(country_code.upper())
+    try:
+        # Try CountryDataService for real data
+        data = await country_service.get_country_data(country_code.upper())
+    except Exception as e:
+        print(f"CountryDataService error: {e}, falling back to mock data")
+        data = generate_country_data(country_code.upper())
 
     if not data:
         raise HTTPException(status_code=404, detail=f"Country code '{country_code}' not found")
@@ -1925,12 +2030,21 @@ def generate_mock_pmi() -> list:
         previous = round(country["base"] + (random.random() - 0.5) * 3, 1)
         consensus = round(country["base"] + (random.random() - 0.5) * 2, 1)
 
+        # Generate manufacturing and services PMI values
+        manufacturing = round(value + (random.random() - 0.5) * 2, 1)
+        services = round(value + (random.random() - 0.5) * 2, 1)
+        composite = round((manufacturing + services) / 2, 1)
+
         pmi_data.append({
             "country": country["name"],
             "country_code": country["code"],
             "flag": country["flag"],
             "value": value,
+            "manufacturing": manufacturing,
+            "services": services,
+            "composite": composite,
             "previous_value": previous,
+            "previous": previous,
             "consensus": consensus,
             "change": round(value - previous, 1),
             "surprise": round(value - consensus, 1),
@@ -2164,6 +2278,128 @@ async def get_buffett_indicator():
             },
             "last_updated": metrics.last_updated,
             "data_freshness": metrics.data_freshness,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/macro/historical/{series_id}")
+async def get_macro_historical_data(
+    series_id: str,
+    period: str = "1Y",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """
+    Get historical data for a specific macro indicator.
+
+    Args:
+        series_id: Indicator ID - one of:
+            - treasury_10y: 10-Year Treasury Yield
+            - treasury_2y: 2-Year Treasury Yield
+            - yield_spread: 10Y-2Y Spread (calculated)
+            - fed_funds: Federal Funds Rate
+            - unemployment: Unemployment Rate
+            - cpi: Consumer Price Index
+            - m2: M2 Money Supply
+            - vix: CBOE Volatility Index
+            - credit_spread: Corporate Bond Spread
+        period: Time period - '1M', '3M', '1Y', '5Y', '10Y', 'MAX'
+        start_date: Optional start date (YYYY-MM-DD), overrides period
+        end_date: Optional end date (YYYY-MM-DD)
+
+    Returns:
+        Historical data points with date and value
+    """
+    valid_series = [
+        'treasury_10y', 'treasury_2y', 'yield_spread', 'fed_funds',
+        'unemployment', 'cpi', 'm2', 'vix', 'credit_spread'
+    ]
+
+    if series_id not in valid_series:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid series_id. Valid options: {', '.join(valid_series)}"
+        )
+
+    valid_periods = ['1M', '3M', '1Y', '5Y', '10Y', 'MAX']
+    if period not in valid_periods:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid period. Valid options: {', '.join(valid_periods)}"
+        )
+
+    try:
+        fetcher = get_macro_fetcher()
+        data = fetcher.fetch_historical_series(
+            series_id=series_id,
+            period=period,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        # Add metadata
+        series_meta = {
+            'treasury_10y': {'name': '10-Year Treasury Yield', 'unit': '%'},
+            'treasury_2y': {'name': '2-Year Treasury Yield', 'unit': '%'},
+            'yield_spread': {'name': '10Y-2Y Yield Spread', 'unit': '%'},
+            'fed_funds': {'name': 'Federal Funds Rate', 'unit': '%'},
+            'unemployment': {'name': 'Unemployment Rate', 'unit': '%'},
+            'cpi': {'name': 'Consumer Price Index', 'unit': 'Index'},
+            'm2': {'name': 'M2 Money Supply', 'unit': 'Billions USD'},
+            'vix': {'name': 'CBOE VIX Index', 'unit': 'Points'},
+            'credit_spread': {'name': 'Corporate Bond Spread', 'unit': '%'},
+        }
+
+        meta = series_meta.get(series_id, {'name': series_id, 'unit': ''})
+
+        return {
+            "series_id": series_id,
+            "series_name": meta['name'],
+            "unit": meta['unit'],
+            "period": period,
+            "data_points": len(data),
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/macro/historical")
+async def get_all_macro_historical(period: str = "1Y"):
+    """
+    Get historical data for all main macro indicators at once.
+    Useful for dashboard sparkline charts.
+
+    Args:
+        period: Time period - '1M', '3M', '1Y', '5Y', '10Y'
+
+    Returns:
+        Historical data for multiple indicators
+    """
+    valid_periods = ['1M', '3M', '1Y', '5Y', '10Y']
+    if period not in valid_periods:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid period. Valid options: {', '.join(valid_periods)}"
+        )
+
+    try:
+        fetcher = get_macro_fetcher()
+
+        # Fetch key indicators in parallel (simulated - sequential for simplicity)
+        indicators = ['treasury_10y', 'yield_spread', 'unemployment', 'vix', 'cpi']
+
+        result = {}
+        for indicator in indicators:
+            data = fetcher.fetch_historical_series(series_id=indicator, period=period)
+            # Only include last 50 points for sparklines
+            result[indicator] = data[-50:] if len(data) > 50 else data
+
+        return {
+            "period": period,
+            "indicators": result,
+            "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -2543,11 +2779,6 @@ async def analyze_institutional_view(request: InstitutionalAnalysisRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
 # ============================================
 # INSIGHT LIBRARY ENDPOINTS (Phase 8)
 # ============================================
@@ -2574,12 +2805,33 @@ async def get_insight_sources():
 
 @app.get("/api/insights/list")
 async def list_insights(use_mock: bool = False, max_per_source: int = 3):
-    """Fetch latest articles from institutional sources."""
+    """Fetch latest articles from institutional sources.
+
+    Args:
+        use_mock: If True, return mock data instead of fetching RSS feeds.
+        max_per_source: Maximum number of articles to fetch per source.
+
+    Returns:
+        List of articles with metadata.
+    """
     try:
-        articles = get_mock_insights() if use_mock else fetch_rss_feeds(max_per_source=max_per_source)
-        return {"articles": [a.to_dict() for a in articles], "count": len(articles), "fetched_at": datetime.now().isoformat()}
+        articles = fetch_rss_feeds(max_per_source=max_per_source, use_mock=use_mock)
+        return {
+            "articles": [a.to_dict() for a in articles],
+            "count": len(articles),
+            "fetched_at": datetime.now().isoformat(),
+            "is_mock": use_mock or len(articles) == 0
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[ERROR] Failed to fetch insights: {e}")
+        fallback_articles = get_mock_insights()
+        return {
+            "articles": [a.to_dict() for a in fallback_articles],
+            "count": len(fallback_articles),
+            "fetched_at": datetime.now().isoformat(),
+            "is_mock": True,
+            "error": str(e)
+        }
 
 
 @app.get("/api/insights/behavioral-bias")
@@ -2620,6 +2872,237 @@ async def extract_article_text(url: str):
         text = extract_full_text(url, timeout=15)
         return {"success": True, "text": text, "length": len(text)} if text else {"success": False, "text": None}
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Multi-Article Analysis Request/Response Models
+class MultiArticleRequest(BaseModel):
+    articles: List[dict]  # List of {id, source, title, summary}
+    language: str = "en"
+
+
+class KeyTheme(BaseModel):
+    theme: str
+    description: str
+    sentiment: str  # bullish, bearish, neutral
+    relevance: float  # 0-1 score
+    related_articles: List[str]  # article IDs
+
+
+class MultiArticleResponse(BaseModel):
+    key_themes: List[KeyTheme]
+    overall_sentiment: str
+    market_implications: str
+    action_items: List[str]
+    sources_analyzed: int
+
+
+def extract_key_themes_from_articles(articles: List[dict], language: str = "en") -> dict:
+    """Extract common themes and synthesize multiple articles.
+
+    This function analyzes multiple articles to find:
+    1. Common topics and themes across sources
+    2. Overall market sentiment
+    3. Key takeaways for investors
+    """
+    import re
+    from collections import Counter
+
+    # Define economic keywords for theme detection
+    theme_keywords = {
+        "inflation": ["inflation", "cpi", "price", "cost", "deflation"],
+        "interest_rates": ["rate", "fed", "fomc", "monetary", "yield", "basis point"],
+        "growth": ["gdp", "growth", "expansion", "recession", "slowdown"],
+        "employment": ["job", "employment", "labor", "unemployment", "wage"],
+        "banking": ["bank", "credit", "lending", "deposit", "liquidity"],
+        "trade": ["trade", "tariff", "export", "import", "deficit", "surplus"],
+        "currency": ["dollar", "euro", "fx", "exchange rate", "currency"],
+        "fiscal": ["fiscal", "debt", "budget", "spending", "tax"],
+        "geopolitical": ["geopolitical", "war", "sanction", "tension", "conflict"],
+        "technology": ["ai", "tech", "digital", "crypto", "blockchain"],
+    }
+
+    # Sentiment keywords
+    bullish_words = ["growth", "recovery", "expansion", "improvement", "optimistic", "bullish", "rally", "surge", "gain", "strong"]
+    bearish_words = ["decline", "recession", "slowdown", "crisis", "risk", "concern", "weakness", "fall", "drop", "bearish"]
+
+    # Combine all text for analysis
+    all_text = " ".join([
+        f"{a.get('title', '')} {a.get('summary_raw', '')} {a.get('summary', '')}"
+        for a in articles
+    ]).lower()
+
+    # Count theme occurrences
+    theme_counts = {}
+    theme_articles = {}
+
+    for theme, keywords in theme_keywords.items():
+        count = sum(all_text.count(kw) for kw in keywords)
+        if count > 0:
+            theme_counts[theme] = count
+            # Find which articles mention this theme
+            related = []
+            for a in articles:
+                article_text = f"{a.get('title', '')} {a.get('summary_raw', '')}".lower()
+                if any(kw in article_text for kw in keywords):
+                    related.append(a.get('id', ''))
+            theme_articles[theme] = related
+
+    # Calculate sentiment
+    bullish_score = sum(all_text.count(w) for w in bullish_words)
+    bearish_score = sum(all_text.count(w) for w in bearish_words)
+
+    if bullish_score > bearish_score * 1.3:
+        overall_sentiment = "bullish"
+    elif bearish_score > bullish_score * 1.3:
+        overall_sentiment = "bearish"
+    else:
+        overall_sentiment = "neutral"
+
+    # Build key themes
+    sorted_themes = sorted(theme_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    theme_descriptions = {
+        "inflation": {
+            "en": "Price stability and inflation trends",
+            "ko": "물가 안정성 및 인플레이션 동향"
+        },
+        "interest_rates": {
+            "en": "Monetary policy and interest rate outlook",
+            "ko": "통화 정책 및 금리 전망"
+        },
+        "growth": {
+            "en": "Economic growth and GDP trends",
+            "ko": "경제 성장 및 GDP 동향"
+        },
+        "employment": {
+            "en": "Labor market conditions",
+            "ko": "노동 시장 상황"
+        },
+        "banking": {
+            "en": "Banking sector and credit conditions",
+            "ko": "은행 부문 및 신용 상황"
+        },
+        "trade": {
+            "en": "International trade dynamics",
+            "ko": "국제 무역 동향"
+        },
+        "currency": {
+            "en": "Foreign exchange and currency movements",
+            "ko": "외환 및 통화 움직임"
+        },
+        "fiscal": {
+            "en": "Government spending and fiscal policy",
+            "ko": "정부 지출 및 재정 정책"
+        },
+        "geopolitical": {
+            "en": "Geopolitical risks and tensions",
+            "ko": "지정학적 리스크 및 긴장"
+        },
+        "technology": {
+            "en": "Technology and digital transformation",
+            "ko": "기술 및 디지털 전환"
+        },
+    }
+
+    key_themes = []
+    max_count = sorted_themes[0][1] if sorted_themes else 1
+
+    for theme_name, count in sorted_themes:
+        # Determine theme sentiment based on context
+        theme_text = " ".join([
+            f"{a.get('title', '')} {a.get('summary_raw', '')}"
+            for a in articles
+            if a.get('id', '') in theme_articles.get(theme_name, [])
+        ]).lower()
+
+        t_bullish = sum(theme_text.count(w) for w in bullish_words)
+        t_bearish = sum(theme_text.count(w) for w in bearish_words)
+
+        if t_bullish > t_bearish * 1.2:
+            theme_sentiment = "bullish"
+        elif t_bearish > t_bullish * 1.2:
+            theme_sentiment = "bearish"
+        else:
+            theme_sentiment = "neutral"
+
+        key_themes.append({
+            "theme": theme_name.replace("_", " ").title(),
+            "description": theme_descriptions.get(theme_name, {}).get(language, theme_descriptions.get(theme_name, {}).get("en", "")),
+            "sentiment": theme_sentiment,
+            "relevance": round(count / max_count, 2),
+            "related_articles": theme_articles.get(theme_name, [])
+        })
+
+    # Generate market implications
+    if language == "ko":
+        if overall_sentiment == "bullish":
+            implications = "전반적으로 긍정적인 시그널이 감지됩니다. 주요 기관들은 경제 회복에 대한 낙관적 전망을 제시하고 있습니다."
+        elif overall_sentiment == "bearish":
+            implications = "주의가 필요한 시기입니다. 여러 리스크 요인들이 부각되고 있으며, 방어적 포지션을 고려해볼 수 있습니다."
+        else:
+            implications = "혼조된 시그널이 나타나고 있습니다. 시장 방향성에 대한 불확실성이 높으므로 신중한 접근이 필요합니다."
+
+        action_items = [
+            "각 주제별 심층 분석 기사 확인",
+            "포트폴리오 리밸런싱 검토",
+            "주요 경제 지표 발표 일정 확인"
+        ]
+    else:
+        if overall_sentiment == "bullish":
+            implications = "Overall positive signals detected. Major institutions present optimistic outlook on economic recovery."
+        elif overall_sentiment == "bearish":
+            implications = "Caution advised. Several risk factors are emerging, consider defensive positioning."
+        else:
+            implications = "Mixed signals across sources. High uncertainty about market direction, cautious approach recommended."
+
+        action_items = [
+            "Review detailed analysis for each theme",
+            "Consider portfolio rebalancing",
+            "Monitor upcoming economic data releases"
+        ]
+
+    return {
+        "key_themes": key_themes,
+        "overall_sentiment": overall_sentiment,
+        "market_implications": implications,
+        "action_items": action_items,
+        "sources_analyzed": len(articles)
+    }
+
+
+@app.post("/api/insights/analyze-multiple", response_model=MultiArticleResponse)
+async def analyze_multiple_articles(request: MultiArticleRequest):
+    """Analyze multiple articles to extract common themes and synthesize insights.
+
+    This endpoint:
+    1. Takes multiple articles from different sources
+    2. Extracts common themes across all articles
+    3. Determines overall market sentiment
+    4. Provides actionable insights for investors
+    """
+    if not request.articles:
+        raise HTTPException(status_code=400, detail="No articles provided")
+
+    if len(request.articles) > 20:
+        raise HTTPException(status_code=400, detail="Maximum 20 articles allowed")
+
+    # Generate cache key based on article IDs
+    article_ids = sorted([a.get('id', '') for a in request.articles])
+    cache_extra = "_".join(article_ids[:5])  # Use first 5 IDs for cache key
+    cache_key = get_cache_key("multi_insight", request.language, cache_extra)
+
+    # Check cache
+    cached = get_cached_analysis(cache_key)
+    if cached:
+        return MultiArticleResponse(**cached)
+
+    try:
+        result = extract_key_themes_from_articles(request.articles, request.language)
+        save_cached_analysis(cache_key, result)
+        return MultiArticleResponse(**result)
+    except Exception as e:
+        print(f"[ERROR] Multi-article analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3016,3 +3499,159 @@ async def analyze_whale_activity(request: WhaleAnalysisRequest):
         return WhaleAnalysisResponse(**response_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# RESPONSE RATING SYSTEM
+# ============================================
+
+RATINGS_DIR = CACHE_DIR / "ratings"
+RATINGS_DIR.mkdir(exist_ok=True)
+
+
+class RatingRequest(BaseModel):
+    analysis_type: str
+    cache_key: Optional[str] = None
+    rating: str  # "helpful" or "not_helpful"
+    comment: Optional[str] = None
+
+
+class RatingResponse(BaseModel):
+    success: bool
+    message: str
+    total_helpful: int
+    total_not_helpful: int
+
+
+class RatingStats(BaseModel):
+    analysis_type: str
+    helpful_count: int
+    not_helpful_count: int
+    total_ratings: int
+    helpful_percentage: float
+    recent_comments: List[str]
+
+
+def get_ratings_file(analysis_type: str) -> Path:
+    """Get the ratings file path for an analysis type."""
+    return RATINGS_DIR / f"{analysis_type}_ratings.json"
+
+
+def load_ratings(analysis_type: str) -> dict:
+    """Load ratings for an analysis type."""
+    ratings_file = get_ratings_file(analysis_type)
+    if ratings_file.exists():
+        try:
+            with open(ratings_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {"helpful": [], "not_helpful": [], "comments": []}
+
+
+def save_ratings(analysis_type: str, ratings: dict) -> None:
+    """Save ratings for an analysis type."""
+    ratings_file = get_ratings_file(analysis_type)
+    try:
+        with open(ratings_file, "w", encoding="utf-8") as f:
+            json.dump(ratings, f, ensure_ascii=False, indent=2)
+    except IOError as e:
+        print(f"Failed to save ratings: {e}")
+
+
+@app.post("/api/analyze/rating", response_model=RatingResponse)
+async def submit_rating(request: RatingRequest):
+    """
+    Submit a rating for an AI analysis response.
+    Rating can be 'helpful' or 'not_helpful'.
+    """
+    if request.rating not in ["helpful", "not_helpful"]:
+        raise HTTPException(status_code=400, detail="Rating must be 'helpful' or 'not_helpful'")
+
+    valid_types = ["bonds", "stocks", "fx", "policy", "economy", "history", "country", "whale", "insights", "institutional", "macro"]
+    if request.analysis_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid analysis type. Must be one of: {', '.join(valid_types)}")
+
+    ratings = load_ratings(request.analysis_type)
+
+    rating_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "cache_key": request.cache_key,
+    }
+
+    if request.rating == "helpful":
+        ratings["helpful"].append(rating_entry)
+    else:
+        ratings["not_helpful"].append(rating_entry)
+
+    if request.comment:
+        ratings["comments"].append({
+            "timestamp": datetime.now().isoformat(),
+            "rating": request.rating,
+            "comment": request.comment
+        })
+        ratings["comments"] = ratings["comments"][-50:]
+
+    save_ratings(request.analysis_type, ratings)
+
+    return RatingResponse(
+        success=True,
+        message=f"Rating submitted successfully for {request.analysis_type}",
+        total_helpful=len(ratings["helpful"]),
+        total_not_helpful=len(ratings["not_helpful"])
+    )
+
+
+@app.get("/api/analyze/rating/{analysis_type}", response_model=RatingStats)
+async def get_rating_stats(analysis_type: str):
+    """Get rating statistics for an analysis type."""
+    valid_types = ["bonds", "stocks", "fx", "policy", "economy", "history", "country", "whale", "insights", "institutional", "macro"]
+    if analysis_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid analysis type. Must be one of: {', '.join(valid_types)}")
+
+    ratings = load_ratings(analysis_type)
+    helpful_count = len(ratings.get("helpful", []))
+    not_helpful_count = len(ratings.get("not_helpful", []))
+    total = helpful_count + not_helpful_count
+
+    recent_comments = [
+        c.get("comment", "") for c in ratings.get("comments", [])[-5:]
+        if c.get("comment")
+    ]
+
+    return RatingStats(
+        analysis_type=analysis_type,
+        helpful_count=helpful_count,
+        not_helpful_count=not_helpful_count,
+        total_ratings=total,
+        helpful_percentage=round((helpful_count / total * 100) if total > 0 else 0, 1),
+        recent_comments=recent_comments
+    )
+
+
+@app.get("/api/analyze/ratings/all")
+async def get_all_rating_stats():
+    """Get rating statistics for all analysis types."""
+    valid_types = ["bonds", "stocks", "fx", "policy", "economy", "history", "country", "whale", "insights", "institutional", "macro"]
+    all_stats = []
+    
+    for analysis_type in valid_types:
+        ratings = load_ratings(analysis_type)
+        helpful_count = len(ratings.get("helpful", []))
+        not_helpful_count = len(ratings.get("not_helpful", []))
+        total = helpful_count + not_helpful_count
+        
+        all_stats.append({
+            "analysis_type": analysis_type,
+            "helpful_count": helpful_count,
+            "not_helpful_count": not_helpful_count,
+            "total_ratings": total,
+            "helpful_percentage": round((helpful_count / total * 100) if total > 0 else 0, 1)
+        })
+
+    return {"ratings": all_stats}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -202,9 +202,9 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
         try {
             // Fetch data from multiple sources in parallel
             const [fxResponse, bondsResponse, stocksResponse] = await Promise.allSettled([
-                fetch("http://localhost:8001/api/fx/rates"),
-                fetch("http://localhost:8001/api/bonds/yields"),
-                fetch("http://localhost:8001/api/stocks/indices")
+                fetch("http://localhost:8000/api/fx/rates"),
+                fetch("http://localhost:8000/api/bonds/yields"),
+                fetch("http://localhost:8000/api/stocks/indices")
             ]);
 
             // Parse responses

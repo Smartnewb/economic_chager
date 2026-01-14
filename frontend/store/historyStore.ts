@@ -115,7 +115,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
             });
 
             const response = await fetch(
-                `http://localhost:8001/api/history/parallel?${params}`
+                `http://localhost:8000/api/history/parallel?${params}`
             );
 
             if (!response.ok) {
@@ -141,7 +141,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     // Fetch Historical Crises
     fetchCrises: async () => {
         try {
-            const response = await fetch("http://localhost:8001/api/history/crises");
+            const response = await fetch("http://localhost:8000/api/history/crises");
 
             if (!response.ok) {
                 throw new Error("Failed to fetch crises");
@@ -177,7 +177,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
         try {
             // First check for cached analysis
             const cacheResponse = await fetch(
-                `http://localhost:8001/api/analyze/history/cached?language=${language}`
+                `http://localhost:8000/api/analyze/history/cached?language=${language}`
             );
 
             if (cacheResponse.ok) {
@@ -195,7 +195,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
             }
 
             // No cache, request new analysis
-            const response = await fetch("http://localhost:8001/api/analyze/history", {
+            const response = await fetch("http://localhost:8000/api/analyze/history", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

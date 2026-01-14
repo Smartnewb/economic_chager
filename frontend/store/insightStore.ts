@@ -36,6 +36,24 @@ export interface InsightAnalysisResult {
   synthesis: string;
 }
 
+// Key Theme from multi-article analysis
+export interface KeyTheme {
+  theme: string;
+  description: string;
+  sentiment: "bullish" | "bearish" | "neutral";
+  relevance: number;
+  related_articles: string[];
+}
+
+// Multi-Article Analysis Result
+export interface MultiArticleAnalysisResult {
+  key_themes: KeyTheme[];
+  overall_sentiment: "bullish" | "bearish" | "neutral";
+  market_implications: string;
+  action_items: string[];
+  sources_analyzed: number;
+}
+
 interface InsightState {
   // Data State
   articles: InsightArticle[];
@@ -56,17 +74,25 @@ interface InsightState {
   analysisError: string | null;
   showAnalysisPanel: boolean;
 
+  // Multi-Article Analysis State
+  isAnalyzingMultiple: boolean;
+  multiAnalysisResult: MultiArticleAnalysisResult | null;
+  multiAnalysisError: string | null;
+  showThemesPanel: boolean;
+
   // Actions
   fetchArticles: (useMock?: boolean) => Promise<void>;
   fetchSources: () => Promise<void>;
   fetchBehavioralBias: (vix?: number, rsi?: number, marketChange1m?: number, language?: string) => Promise<void>;
   selectArticle: (article: InsightArticle | null) => void;
   requestAnalysis: (article: InsightArticle, language?: string) => Promise<void>;
+  requestMultiAnalysis: (articles: InsightArticle[], language?: string) => Promise<void>;
   closeAnalysisPanel: () => void;
+  closeThemesPanel: () => void;
   reset: () => void;
 }
 
-const API_BASE = "http://localhost:8001";
+const API_BASE = "http://localhost:8000";
 
 export const useInsightStore = create<InsightState>((set, get) => ({
   // Initial State
@@ -81,6 +107,10 @@ export const useInsightStore = create<InsightState>((set, get) => ({
   analysisResult: null,
   analysisError: null,
   showAnalysisPanel: false,
+  isAnalyzingMultiple: false,
+  multiAnalysisResult: null,
+  multiAnalysisError: null,
+  showThemesPanel: false,
 
   // Fetch RSS articles
   fetchArticles: async (useMock = false) => {
@@ -173,6 +203,38 @@ export const useInsightStore = create<InsightState>((set, get) => ({
     set({ showAnalysisPanel: false });
   },
 
+  // Request multi-article analysis for key themes
+  requestMultiAnalysis: async (articles, language = "en") => {
+    set({ isAnalyzingMultiple: true, multiAnalysisError: null, showThemesPanel: true });
+
+    try {
+      const res = await fetch(`${API_BASE}/api/insights/analyze-multiple`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articles: articles.map(a => ({
+            id: a.id,
+            source: a.source,
+            title: a.title,
+            summary_raw: a.summary_raw,
+          })),
+          language,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Multi-article analysis failed");
+      const result = await res.json();
+      set({ multiAnalysisResult: result, isAnalyzingMultiple: false });
+    } catch (error) {
+      set({ multiAnalysisError: (error as Error).message, isAnalyzingMultiple: false });
+    }
+  },
+
+  // Close themes panel
+  closeThemesPanel: () => {
+    set({ showThemesPanel: false });
+  },
+
   // Reset state
   reset: () => {
     set({
@@ -185,6 +247,10 @@ export const useInsightStore = create<InsightState>((set, get) => ({
       analysisResult: null,
       analysisError: null,
       showAnalysisPanel: false,
+      isAnalyzingMultiple: false,
+      multiAnalysisResult: null,
+      multiAnalysisError: null,
+      showThemesPanel: false,
     });
   },
 }));

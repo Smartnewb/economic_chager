@@ -1,9 +1,33 @@
 "use client";
 
-import Map from 'react-map-gl/maplibre';
-import DeckGL from '@deck.gl/react';
-import { ArcLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { AnalysisTriggerButton, AnalysisPanel, AnalysisResult } from '@/components/ui';
+
+// Dynamic imports for heavy map components - reduces initial bundle
+const Map = dynamic(() => import('react-map-gl/maplibre').then(mod => mod.default), {
+    ssr: false,
+    loading: () => (
+        <div className="w-full h-full bg-[#0a0a0f] flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+        </div>
+    ),
+});
+
+const DeckGL = dynamic(() => import('@deck.gl/react').then(mod => mod.default), {
+    ssr: false,
+});
+
+// Money Flow Notifications for real-time updates
+const FLOW_NOTIFICATIONS = [
+    { amount: '$2.4T', from: 'Korea', to: 'US Treasury', type: 'Safe Haven', icon: '🛡️' },
+    { amount: '$890B', from: 'Japan', to: 'US Equities', type: 'Risk On', icon: '📈' },
+    { amount: '$1.2T', from: 'EU', to: 'Emerging Markets', type: 'Risk On', icon: '🌍' },
+    { amount: '$560B', from: 'China', to: 'Gold', type: 'Hedge', icon: '🥇' },
+    { amount: '$3.1T', from: 'US Tech', to: 'US Bonds', type: 'Rotation', icon: '🔄' },
+    { amount: '$780B', from: 'EM', to: 'USD Cash', type: 'Flight', icon: '✈️' },
+];
 
 // ----------------------------------------------------------------------
 // TYPES & DATA
@@ -55,60 +79,169 @@ const FLOWS: CurrencyFlow[] = [
 
 
 export default function CurrencyMapPage() {
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+    const [showPanel, setShowPanel] = useState(false);
+    const [currentNotification, setCurrentNotification] = useState(0);
+    const [arcOffset, setArcOffset] = useState(0);
+    const [layerClasses, setLayerClasses] = useState<{
+        ArcLayer: typeof import('@deck.gl/layers').ArcLayer | null;
+        ScatterplotLayer: typeof import('@deck.gl/layers').ScatterplotLayer | null;
+    }>({ ArcLayer: null, ScatterplotLayer: null });
 
-    // Create Deck.gl layers
-    const layers = [
-        // 1. Connection Arcs (Flows)
-        new ArcLayer<CurrencyFlow>({
-            id: 'currency-arcs',
-            data: FLOWS,
-            getSourcePosition: d => {
-                const node = NODES.find(n => n.id === d.source);
-                return node ? node.coordinates : [0, 0];
-            },
-            getTargetPosition: d => {
-                const node = NODES.find(n => n.id === d.target);
-                return node ? node.coordinates : [0, 0];
-            },
-            getSourceColor: d => {
-                const node = NODES.find(n => n.id === d.source);
-                return node ? [...node.color, 180] : [255, 255, 255, 100];
-            },
-            getTargetColor: d => {
-                const node = NODES.find(n => n.id === d.target);
-                return node ? [...node.color, 255] : [255, 255, 255, 200];
-            },
-            getWidth: d => Math.max(1, d.value / 10), // Width based on volume
-            getHeight: 0.5, // 2D flat looking, lower arcs
-        }),
+    // Dynamically import deck.gl layers (code splitting)
+    useEffect(() => {
+        import('@deck.gl/layers').then(({ ArcLayer, ScatterplotLayer }) => {
+            setLayerClasses({ ArcLayer, ScatterplotLayer });
+        });
+    }, []);
 
-        // 2. Nodes (Financial Centers)
-        new ScatterplotLayer<CurrencyNode>({
-            id: 'financial-centers',
-            data: NODES,
-            getPosition: d => d.coordinates,
-            getRadius: d => d.importance * 30000, // Scale by importance
-            getFillColor: d => [...d.color, 200],
-            getLineColor: [0, 0, 0],
-            getLineWidth: 2000,
-            stroked: true,
-            pickable: true,
-            autoHighlight: true,
-        })
-    ];
+    // Rotate notifications
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentNotification((prev) => (prev + 1) % FLOW_NOTIFICATIONS.length);
+        }, 4000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Animate arc offset for "flow" effect
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setArcOffset((prev) => (prev + 0.02) % 1);
+        }, 50);
+        return () => clearInterval(interval);
+    }, []);
+
+    const notification = FLOW_NOTIFICATIONS[currentNotification];
+
+    const handleAnalyze = async () => {
+        setIsAnalyzing(true);
+        setShowPanel(true);
+        try {
+            // Check cache first
+            const cacheRes = await fetch('http://localhost:8000/api/analyze/fx/cached?language=en&selected_pair=USD/KRW');
+            const cacheData = await cacheRes.json();
+            if (cacheData.cached && cacheData.result) {
+                setAnalysisResult(cacheData.result);
+                setIsAnalyzing(false);
+                return;
+            }
+
+            // If no cache, request new analysis
+            const response = await fetch('http://localhost:8000/api/analyze/fx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dollar_index: 104.5,
+                    dollar_trend: 'strengthening',
+                    selected_pair: 'USD/KRW',
+                    risk_sentiment: 'neutral',
+                    language: 'en'
+                })
+            });
+            const data = await response.json();
+            setAnalysisResult(data);
+        } catch (error) {
+            console.error('Analysis failed:', error);
+            setAnalysisResult({
+                topic: 'fx',
+                timestamp: new Date().toISOString(),
+                perspectives: [
+                    { persona: 'kostolany', analysis: 'Unable to connect to AI service. Please try again.' },
+                    { persona: 'buffett', analysis: 'Analysis service is currently unavailable.' },
+                    { persona: 'munger', analysis: 'Check your network connection and backend status.' },
+                    { persona: 'dalio', analysis: 'The system will retry automatically when available.' }
+                ]
+            });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    // Create Deck.gl layers (memoized, only when layer classes are loaded)
+    const layers = useMemo(() => {
+        const { ArcLayer, ScatterplotLayer } = layerClasses;
+        if (!ArcLayer || !ScatterplotLayer) return [];
+
+        return [
+            // 1. Connection Arcs (Flows)
+            new ArcLayer<CurrencyFlow>({
+                id: 'currency-arcs',
+                data: FLOWS,
+                getSourcePosition: d => {
+                    const node = NODES.find(n => n.id === d.source);
+                    return node ? node.coordinates : [0, 0];
+                },
+                getTargetPosition: d => {
+                    const node = NODES.find(n => n.id === d.target);
+                    return node ? node.coordinates : [0, 0];
+                },
+                getSourceColor: d => {
+                    const node = NODES.find(n => n.id === d.source);
+                    return node ? [...node.color, 180] : [255, 255, 255, 100];
+                },
+                getTargetColor: d => {
+                    const node = NODES.find(n => n.id === d.target);
+                    return node ? [...node.color, 255] : [255, 255, 255, 200];
+                },
+                getWidth: d => Math.max(1, d.value / 10), // Width based on volume
+                getHeight: 0.5, // 2D flat looking, lower arcs
+            }),
+
+            // 2. Nodes (Financial Centers)
+            new ScatterplotLayer<CurrencyNode>({
+                id: 'financial-centers',
+                data: NODES,
+                getPosition: d => d.coordinates,
+                getRadius: d => d.importance * 30000, // Scale by importance
+                getFillColor: d => [...d.color, 200],
+                getLineColor: [0, 0, 0],
+                getLineWidth: 2000,
+                stroked: true,
+                pickable: true,
+                autoHighlight: true,
+            })
+        ];
+    }, [layerClasses]);
 
     return (
         <div className="h-full w-full relative bg-[#050505] flex flex-col">
             {/* Page Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 p-4 pointer-events-none bg-gradient-to-b from-[#050505] to-transparent">
-                <h1 className="text-xl font-bold text-white tracking-widest flex items-center gap-2">
-                    <span className="text-blue-500">GLOBAL_LIQUIDITY_MAP</span>
-                    <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">LIVE</span>
-                </h1>
-                <div className="flex gap-4 mt-2 text-[10px] text-gray-400 font-mono">
-                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span>JPY Flow Out</div>
-                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500"></span>USD Inflow</div>
-                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span>GBP Neutral</div>
+            <div className="absolute top-0 left-0 right-0 z-10 p-4 pointer-events-none bg-gradient-to-b from-[#050505] via-[#050505]/80 to-transparent">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-xl font-bold text-white tracking-widest flex items-center gap-2">
+                            <span className="text-blue-500">GLOBAL_LIQUIDITY_MAP</span>
+                            <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">LIVE</span>
+                        </h1>
+                        <p className="text-[10px] text-gray-500 mt-1">
+                            "Money flows to higher rates and safer havens"
+                        </p>
+                        <div className="flex gap-4 mt-2 text-[10px] text-gray-400 font-mono">
+                            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>Risk Off</div>
+                            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>Risk On</div>
+                            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-500"></span>Neutral</div>
+                        </div>
+                    </div>
+
+                    {/* Live Capital Flow Notification */}
+                    <div className="pointer-events-auto">
+                        <div className="px-4 py-3 bg-black/60 backdrop-blur-xl border border-amber-500/30 rounded-xl shadow-lg shadow-amber-500/10 animate-pulse min-w-[240px]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                                <div>
+                                    <p className="text-[10px] text-gray-400 uppercase">Live Capital Flow</p>
+                                    <p className="text-sm text-white font-medium">
+                                        <span className="text-amber-400 font-bold">{notification.amount}</span>
+                                        {' '}{notification.from} → {notification.to}
+                                    </p>
+                                    <p className="text-[9px] text-gray-500 mt-0.5">
+                                        {notification.icon} {notification.type}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -135,19 +268,72 @@ export default function CurrencyMapPage() {
             </div>
 
             {/* Overlay Stats Panel */}
-            <div className="absolute bottom-4 left-4 z-10 w-64 bg-[#111116] border border-[#27272a] rounded p-3 shadow-2xl backdrop-blur-sm">
-                <div className="text-[10px] font-bold text-gray-500 mb-2 border-b border-[#27272a] pb-1">TOP FLOWS (24H)</div>
-                <div className="space-y-1">
+            <div className="absolute bottom-4 left-4 z-10 w-72 bg-[#111116]/95 border border-[#27272a] rounded-lg p-3 shadow-2xl backdrop-blur-sm">
+                <div className="text-[10px] font-bold text-gray-500 mb-2 border-b border-[#27272a] pb-1 flex items-center justify-between">
+                    <span>TOP FLOWS (24H)</span>
+                    <span className="text-[9px] text-blue-400">Korea-centric view</span>
+                </div>
+                <div className="space-y-1.5">
                     {FLOWS.slice(0, 5).map((f) => (
-                        <div key={`${f.source}-${f.target}`} className="flex justify-between items-center text-xs font-mono">
-                            <span className="text-gray-300">{f.source} → {f.target}</span>
-                            <span className={f.sentiment === 'risk_off' ? 'text-blue-400' : 'text-amber-400'}>
+                        <div key={`${f.source}-${f.target}`} className="flex justify-between items-center text-xs font-mono p-1.5 rounded hover:bg-[#27272a]/50 transition-colors">
+                            <div className="flex items-center gap-2">
+                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                    f.sentiment === 'risk_off' ? 'bg-blue-500' :
+                                    f.sentiment === 'risk_on' ? 'bg-amber-500' : 'bg-gray-500'
+                                }`}></span>
+                                <span className="text-gray-300">{f.source} → {f.target}</span>
+                            </div>
+                            <span className={f.sentiment === 'risk_off' ? 'text-blue-400' : f.sentiment === 'risk_on' ? 'text-amber-400' : 'text-gray-400'}>
                                 ${f.value}B
                             </span>
                         </div>
                     ))}
                 </div>
+
+                {/* Money Flow Insight */}
+                <div className="mt-3 pt-3 border-t border-[#27272a]">
+                    <div className="text-[10px] font-bold text-amber-500 mb-2 flex items-center gap-1">
+                        <span>💡</span> INSIGHT
+                    </div>
+                    <p className="text-[10px] text-gray-400 leading-relaxed">
+                        Capital flows from Korea to US intensifying. Risk-off sentiment dominates as investors seek safety in US Treasuries. JPY carry trade unwinding signals broader EM stress.
+                    </p>
+                </div>
+
+                {/* Legend */}
+                <div className="mt-3 pt-3 border-t border-[#27272a]">
+                    <div className="text-[9px] text-gray-500 flex flex-wrap gap-3">
+                        <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Risk Off
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-amber-500"></span> Risk On
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-gray-500"></span> Neutral
+                        </span>
+                    </div>
+                </div>
             </div>
+
+            {/* AI Analysis Trigger Button */}
+            <div className="absolute bottom-4 right-4 z-10">
+                <AnalysisTriggerButton
+                    onAnalyze={handleAnalyze}
+                    isAnalyzing={isAnalyzing}
+                    buttonText="Analyze FX Flows"
+                    subText="Get AI insights on global currency movements"
+                />
+            </div>
+
+            {/* Analysis Panel */}
+            <AnalysisPanel
+                isOpen={showPanel}
+                onClose={() => setShowPanel(false)}
+                result={analysisResult}
+                isLoading={isAnalyzing}
+                topic="Currency Flow Analysis"
+            />
         </div>
     );
 }

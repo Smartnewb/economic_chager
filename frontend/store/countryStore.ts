@@ -386,7 +386,7 @@ export const useCountryStore = create<CountryStore>((set, get) => ({
 
         try {
             // First, check if there's a cached analysis for today (country-specific)
-            const cacheResponse = await fetch(`http://localhost:8001/api/analyze/country/cached?country_code=${countryData.profile.code}&language=${language}`);
+            const cacheResponse = await fetch(`http://localhost:8000/api/analyze/country/cached?country_code=${countryData.profile.code}&language=${language}`);
             if (cacheResponse.ok) {
                 const cacheData = await cacheResponse.json();
                 if (cacheData.cached && cacheData.result) {
@@ -418,7 +418,7 @@ export const useCountryStore = create<CountryStore>((set, get) => ({
                 }
             }, 2000);
 
-            const response = await fetch("http://localhost:8001/api/analyze/country", {
+            const response = await fetch("http://localhost:8000/api/analyze/country", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

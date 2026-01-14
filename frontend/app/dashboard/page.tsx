@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useWeatherStore } from "@/store/weatherStore";
+import { useDashboardStore } from "@/store/dashboardStore";
 import { useI18n } from "@/lib/i18n";
 import Navigation from "@/components/Navigation";
 import AIHeadline from "@/components/weather/AIHeadline";
@@ -22,15 +23,19 @@ const WeatherGlobe = dynamic(() => import("@/components/weather/WeatherGlobe"), 
 
 export default function DashboardPage() {
     const { fetchWeatherData, weather, isLoading } = useWeatherStore();
+    const { data: dashboardData, loading: dashboardLoading, fetchDashboardData } = useDashboardStore();
     const { t } = useI18n();
     const [showCouncil, setShowCouncil] = useState(false);
 
     useEffect(() => {
         fetchWeatherData();
-        // Refresh every 5 minutes
-        const interval = setInterval(fetchWeatherData, 5 * 60 * 1000);
+        fetchDashboardData();
+        const interval = setInterval(() => {
+            fetchWeatherData();
+            fetchDashboardData();
+        }, 5 * 60 * 1000);
         return () => clearInterval(interval);
-    }, [fetchWeatherData]);
+    }, [fetchWeatherData, fetchDashboardData]);
 
     return (
         <main className="relative w-full min-h-screen bg-[#0a0a0f] overflow-hidden">
@@ -142,6 +147,149 @@ export default function DashboardPage() {
                         <svg className="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                         </svg>
+                    </div>
+                </section>
+
+                {/* Dashboard Summary Cards */}
+                <section className="relative px-6 py-12">
+                    <div className="max-w-6xl mx-auto">
+                        <h2 className="text-xl font-bold text-white mb-6 text-center">Market Snapshot</h2>
+                        {dashboardLoading ? (
+                            <div className="flex justify-center py-12">
+                                <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Market Health Card */}
+                                <div className="p-5 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                                            <span className="text-xl">📊</span>
+                                        </div>
+                                        <h3 className="text-white font-semibold">Market Health</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">VIX (Fear Index)</span>
+                                            <span className={`font-mono font-bold ${
+                                                (dashboardData.marketHealth?.vix ?? 20) >= 25 ? 'text-red-400' :
+                                                (dashboardData.marketHealth?.vix ?? 20) >= 20 ? 'text-yellow-400' : 'text-green-400'
+                                            }`}>
+                                                {dashboardData.marketHealth?.vix?.toFixed(1) ?? 'N/A'}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">10Y-2Y Spread</span>
+                                            <span className={`font-mono font-bold ${
+                                                (dashboardData.marketHealth?.spread10y2y ?? 0) < 0 ? 'text-red-400' : 'text-green-400'
+                                            }`}>
+                                                {dashboardData.marketHealth?.spread10y2y?.toFixed(2) ?? 'N/A'}%
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">
+                                            Status: <span className={`font-medium ${
+                                                dashboardData.marketHealth?.spreadStatus === 'INVERTED' ? 'text-red-400' :
+                                                dashboardData.marketHealth?.spreadStatus === 'FLAT' ? 'text-yellow-400' : 'text-green-400'
+                                            }`}>{dashboardData.marketHealth?.spreadStatus ?? 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Whale Activity Card */}
+                                <div className="p-5 rounded-xl bg-gradient-to-br from-purple-500/10 to-violet-500/10 border border-purple-500/20">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                                            <span className="text-xl">🐋</span>
+                                        </div>
+                                        <h3 className="text-white font-semibold">Whale Activity</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {dashboardData.whaleActivity?.topAlerts?.slice(0, 3).map((alert, i) => (
+                                            <div key={i} className="flex items-center gap-2 text-sm">
+                                                <span className={`w-2 h-2 rounded-full ${
+                                                    alert.signal === 'bullish' ? 'bg-green-400' :
+                                                    alert.signal === 'bearish' ? 'bg-red-400' : 'bg-gray-400'
+                                                }`} />
+                                                <span className="font-mono text-amber-400">{alert.symbol}</span>
+                                                <span className="text-gray-400 truncate">{alert.headline.slice(0, 30)}...</span>
+                                            </div>
+                                        )) ?? (
+                                            <div className="text-gray-500 text-sm">No whale activity</div>
+                                        )}
+                                        <div className="text-xs text-gray-500 mt-2">
+                                            {dashboardData.whaleActivity?.insiderCount ?? 0} insider trades detected
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Economic Snapshot Card */}
+                                <div className="p-5 rounded-xl bg-gradient-to-br from-amber-500/10 to-yellow-500/10 border border-amber-500/20">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                                            <span className="text-xl">🏭</span>
+                                        </div>
+                                        <h3 className="text-white font-semibold">Economic Snapshot</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">PMI Composite</span>
+                                            <span className={`font-mono font-bold ${
+                                                (dashboardData.economicSnapshot?.pmiComposite ?? 50) >= 50 ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                                {dashboardData.economicSnapshot?.pmiComposite?.toFixed(1) ?? 'N/A'}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">Dr. Copper</span>
+                                            <span className={`font-mono font-bold ${
+                                                dashboardData.economicSnapshot?.drCopperStatus === 'bullish' ? 'text-green-400' :
+                                                dashboardData.economicSnapshot?.drCopperStatus === 'bearish' ? 'text-red-400' : 'text-gray-400'
+                                            }`}>
+                                                {dashboardData.economicSnapshot?.drCopperChange?.toFixed(1) ?? 'N/A'}%
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">
+                                            Trend: <span className={`font-medium ${
+                                                dashboardData.economicSnapshot?.pmiTrend === 'expanding' ? 'text-green-400' :
+                                                dashboardData.economicSnapshot?.pmiTrend === 'contracting' ? 'text-red-400' : 'text-gray-400'
+                                            }`}>{dashboardData.economicSnapshot?.pmiTrend ?? 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* FX & Flows Card */}
+                                <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                            <span className="text-xl">💱</span>
+                                        </div>
+                                        <h3 className="text-white font-semibold">FX & Flows</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">DXY Index</span>
+                                            <span className="font-mono font-bold text-white">
+                                                {dashboardData.fxFlows?.dxyValue?.toFixed(2) ?? 'N/A'}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-400 text-sm">24h Change</span>
+                                            <span className={`font-mono font-bold ${
+                                                (dashboardData.fxFlows?.dxyChange ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                                            }`}>
+                                                {dashboardData.fxFlows?.dxyChange?.toFixed(2) ?? 'N/A'}%
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">
+                                            Sentiment: <span className={`font-medium ${
+                                                dashboardData.fxFlows?.riskSentiment === 'risk_on' ? 'text-green-400' :
+                                                dashboardData.fxFlows?.riskSentiment === 'risk_off' ? 'text-red-400' : 'text-gray-400'
+                                            }`}>{dashboardData.fxFlows?.riskSentiment?.replace('_', ' ').toUpperCase() ?? 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </section>
 

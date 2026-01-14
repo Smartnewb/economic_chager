@@ -386,7 +386,7 @@ export const useEquityStore = create<EquityState>((set, get) => ({
 
         try {
             // Try API first
-            const response = await fetch("http://localhost:8001/api/stocks/global");
+            const response = await fetch("http://localhost:8000/api/stocks/global");
 
             if (response.ok) {
                 const data = await response.json();
@@ -455,7 +455,7 @@ export const useEquityStore = create<EquityState>((set, get) => ({
             const bottomSector = [...sectors].sort((a, b) => a.change - b.change)[0];
 
             // First, check if there's a cached analysis for today
-            const cacheResponse = await fetch(`http://localhost:8001/api/analyze/stocks/cached?language=${language}`);
+            const cacheResponse = await fetch(`http://localhost:8000/api/analyze/stocks/cached?language=${language}`);
             if (cacheResponse.ok) {
                 const cacheData = await cacheResponse.json();
                 if (cacheData.cached && cacheData.result) {
@@ -477,7 +477,7 @@ export const useEquityStore = create<EquityState>((set, get) => ({
             }
 
             // No cache available, request new analysis
-            const response = await fetch("http://localhost:8001/api/analyze/stocks", {
+            const response = await fetch("http://localhost:8000/api/analyze/stocks", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

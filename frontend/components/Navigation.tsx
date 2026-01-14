@@ -176,7 +176,7 @@ export default function Navigation({
     );
 }
 
-// Mobile Menu Component
+// Mobile Menu Component with slide-in animation
 function MobileMenuButton({
     navigationItems,
     isActive,
@@ -188,12 +188,28 @@ function MobileMenuButton({
 }) {
     const [isOpen, setIsOpen] = useState(false);
 
+    // Close menu on ESC key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setIsOpen(false);
+        };
+        if (isOpen) {
+            document.addEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = 'hidden';
+        }
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = '';
+        };
+    }, [isOpen]);
+
     return (
         <div className="lg:hidden">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-all"
+                className="p-2.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-all touch-manipulation"
                 aria-label="Toggle menu"
+                aria-expanded={isOpen}
             >
                 {isOpen ? (
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,40 +222,82 @@ function MobileMenuButton({
                 )}
             </button>
 
-            {/* Mobile Menu Dropdown */}
+            {/* Mobile Menu Slide-in Overlay */}
             {isOpen && (
                 <>
-                    {/* Backdrop */}
+                    {/* Backdrop with fade animation */}
                     <div
-                        className="fixed inset-0 bg-black/50 z-40"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fade-in"
                         onClick={() => setIsOpen(false)}
                     />
 
-                    {/* Menu */}
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#0f1117] rounded-xl border border-white/10 shadow-2xl z-50 overflow-hidden">
+                    {/* Slide-in Menu Panel */}
+                    <div className="fixed top-0 right-0 h-full w-72 sm:w-80 bg-[#0f1117] border-l border-white/10 shadow-2xl z-50 animate-slide-in-right overflow-y-auto">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-white/10">
+                            <span className="text-white font-semibold">Menu</span>
+                            <button
+                                onClick={() => setIsOpen(false)}
+                                className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors touch-manipulation"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Navigation Items */}
                         <div className="py-2">
-                            {navigationItems.map((item) => (
+                            {navigationItems.map((item, index) => (
                                 <Link
                                     key={item.href}
                                     href={item.href}
                                     onClick={() => setIsOpen(false)}
                                     className={`
-                                        flex items-center gap-3 px-4 py-3 transition-colors
+                                        flex items-center gap-4 px-4 py-4 transition-all touch-manipulation
                                         ${isActive(item.href)
-                                            ? "bg-emerald-500/10 text-emerald-400"
-                                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                                            ? "bg-emerald-500/10 text-emerald-400 border-r-2 border-emerald-500"
+                                            : "text-gray-400 hover:text-white hover:bg-white/5 active:bg-white/10"
                                         }
                                     `}
+                                    style={{ animationDelay: `${index * 50}ms` }}
                                 >
-                                    <span className="text-lg">{item.icon}</span>
-                                    <div>
-                                        <div className="font-medium">{getNavLabel(item)}</div>
-                                        <div className="text-xs text-gray-500">{item.description}</div>
+                                    <span className="text-xl w-8 h-8 flex items-center justify-center">{item.icon}</span>
+                                    <div className="flex-1">
+                                        <div className="font-medium text-base">{getNavLabel(item)}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
                                     </div>
+                                    <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
                                 </Link>
                             ))}
                         </div>
+
+                        {/* Footer */}
+                        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10 bg-[#0f1117]">
+                            <div className="text-xs text-gray-500 text-center">
+                                Insight Flow v1.0
+                            </div>
+                        </div>
                     </div>
+
+                    <style jsx>{`
+                        @keyframes fade-in {
+                            from { opacity: 0; }
+                            to { opacity: 1; }
+                        }
+                        @keyframes slide-in-right {
+                            from { transform: translateX(100%); }
+                            to { transform: translateX(0); }
+                        }
+                        .animate-fade-in {
+                            animation: fade-in 0.2s ease-out forwards;
+                        }
+                        .animate-slide-in-right {
+                            animation: slide-in-right 0.3s ease-out forwards;
+                        }
+                    `}</style>
                 </>
             )}
         </div>

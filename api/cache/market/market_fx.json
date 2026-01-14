@@ -1,99 +1,99 @@
 {
-  "timestamp": "2026-01-13T02:29:48.670353",
+  "timestamp": "2026-01-15T02:06:59.381128",
   "data": {
     "dollarIndex": {
-      "value": 98.88,
-      "change24h": -0.26,
+      "value": 98.98,
+      "change24h": -0.15,
       "trend": "weak"
     },
     "majorPairs": [
       {
         "pair": "USD/JPY",
-        "rate": 158.1,
-        "change24h": 0.78,
-        "high24h": 158.21,
-        "low24h": 157.51,
-        "timestamp": "2026-01-13T02:29:47.084300"
+        "rate": 158.17,
+        "change24h": 0.12,
+        "high24h": 159.46,
+        "low24h": 158.1,
+        "timestamp": "2026-01-15T02:06:57.659256"
       },
       {
         "pair": "EUR/USD",
-        "rate": 1.1671,
-        "change24h": 0.12,
-        "high24h": 1.1701,
-        "low24h": 1.1627,
-        "timestamp": "2026-01-13T02:29:47.212259"
+        "rate": 1.1658,
+        "change24h": -0.08,
+        "high24h": 1.1665,
+        "low24h": 1.164,
+        "timestamp": "2026-01-15T02:06:57.802030"
       },
       {
         "pair": "GBP/USD",
-        "rate": 1.3461,
-        "change24h": 0.17,
-        "high24h": 1.3486,
-        "low24h": 1.3392,
-        "timestamp": "2026-01-13T02:29:47.370942"
+        "rate": 1.3443,
+        "change24h": -0.17,
+        "high24h": 1.3464,
+        "low24h": 1.342,
+        "timestamp": "2026-01-15T02:06:57.919864"
       },
       {
         "pair": "USD/CNY",
-        "rate": 6.9726,
-        "change24h": -0.16,
-        "high24h": 6.9831,
-        "low24h": 6.9722,
-        "timestamp": "2026-01-13T02:29:47.501986"
+        "rate": 6.9725,
+        "change24h": -0.01,
+        "high24h": 6.9793,
+        "low24h": 6.9712,
+        "timestamp": "2026-01-15T02:06:58.131987"
       },
       {
         "pair": "USD/KRW",
-        "rate": 1467.8,
-        "change24h": 1.22,
-        "high24h": 1470.03,
-        "low24h": 1456.13,
-        "timestamp": "2026-01-13T02:29:47.635125"
+        "rate": 1464.73,
+        "change24h": -0.01,
+        "high24h": 1479.08,
+        "low24h": 1460.84,
+        "timestamp": "2026-01-15T02:06:58.329562"
       },
       {
         "pair": "AUD/USD",
-        "rate": 0.6716,
-        "change24h": 0.23,
-        "high24h": 0.6724,
-        "low24h": 0.6679,
-        "timestamp": "2026-01-13T02:29:47.759977"
+        "rate": 0.668,
+        "change24h": -0.41,
+        "high24h": 0.6704,
+        "low24h": 0.6678,
+        "timestamp": "2026-01-15T02:06:58.451291"
       },
       {
         "pair": "USD/CHF",
-        "rate": 0.7974,
-        "change24h": -0.2,
-        "high24h": 0.8018,
-        "low24h": 0.7956,
-        "timestamp": "2026-01-13T02:29:47.891869"
+        "rate": 0.7989,
+        "change24h": 0.19,
+        "high24h": 0.8028,
+        "low24h": 0.7983,
+        "timestamp": "2026-01-15T02:06:58.589997"
       },
       {
         "pair": "USD/CAD",
-        "rate": 1.3877,
-        "change24h": 0.09,
-        "high24h": 1.3917,
-        "low24h": 1.3863,
-        "timestamp": "2026-01-13T02:29:48.020620"
+        "rate": 1.3874,
+        "change24h": -0.01,
+        "high24h": 1.3898,
+        "low24h": 1.3862,
+        "timestamp": "2026-01-15T02:06:58.718710"
       },
       {
         "pair": "USD/INR",
-        "rate": 90.11,
-        "change24h": 0.22,
-        "high24h": 90.25,
-        "low24h": 90.08,
-        "timestamp": "2026-01-13T02:29:48.161067"
+        "rate": 90.22,
+        "change24h": 0.1,
+        "high24h": 90.39,
+        "low24h": 89.95,
+        "timestamp": "2026-01-15T02:06:58.851583"
       },
       {
         "pair": "USD/BRL",
-        "rate": 5.3696,
-        "change24h": -0.32,
-        "high24h": 5.3859,
-        "low24h": 5.3489,
-        "timestamp": "2026-01-13T02:29:48.413661"
+        "rate": 5.3824,
+        "change24h": 0.16,
+        "high24h": 5.4233,
+        "low24h": 5.3588,
+        "timestamp": "2026-01-15T02:06:58.978119"
       },
       {
         "pair": "USD/MXN",
-        "rate": 17.92,
-        "change24h": -0.26,
-        "high24h": 17.98,
-        "low24h": 17.87,
-        "timestamp": "2026-01-13T02:29:48.541889"
+        "rate": 17.81,
+        "change24h": -0.55,
+        "high24h": 17.83,
+        "low24h": 17.79,
+        "timestamp": "2026-01-15T02:06:59.106410"
       }
     ],
     "capitalFlows": [
@@ -129,6 +129,6 @@
       }
     ],
     "riskSentiment": "risk_on",
-    "lastUpdated": "2026-01-13T02:29:48.669872"
+    "lastUpdated": "2026-01-15T02:06:59.379411"
   }
 }

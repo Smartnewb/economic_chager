@@ -229,7 +229,7 @@ export const useBondStore = create<BondState>((set, get) => ({
 
         try {
             // Try to fetch from API first
-            const response = await fetch("http://localhost:8001/api/bonds/yields");
+            const response = await fetch("http://localhost:8000/api/bonds/yields");
 
             if (response.ok) {
                 const data = await response.json();
@@ -330,7 +330,7 @@ export const useBondStore = create<BondState>((set, get) => ({
 
         try {
             // First, check if there's a cached analysis for today
-            const cacheResponse = await fetch(`http://localhost:8001/api/analyze/bonds/cached?language=${language}`);
+            const cacheResponse = await fetch(`http://localhost:8000/api/analyze/bonds/cached?language=${language}`);
             if (cacheResponse.ok) {
                 const cacheData = await cacheResponse.json();
                 if (cacheData.cached && cacheData.result) {
@@ -354,7 +354,7 @@ export const useBondStore = create<BondState>((set, get) => ({
             }
 
             // No cache available, request new analysis
-            const response = await fetch("http://localhost:8001/api/analyze/bonds", {
+            const response = await fetch("http://localhost:8000/api/analyze/bonds", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

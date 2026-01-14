@@ -225,19 +225,36 @@ def extract_full_text(url: str, timeout: int = 10) -> Optional[str]:
         return None
 
 
-def fetch_rss_feeds(sources: list[str] = None, max_per_source: int = 3) -> list[InsightArticle]:
-    """Fetch articles from configured RSS feeds."""
+def fetch_rss_feeds(sources: list[str] = None, max_per_source: int = 3, use_mock: bool = False) -> list[InsightArticle]:
+    """Fetch articles from configured RSS feeds.
+
+    Args:
+        sources: List of source names to fetch from. If None, fetch from all.
+        max_per_source: Maximum articles per source.
+        use_mock: If True, return mock data instead of fetching.
+
+    Returns:
+        List of InsightArticle objects.
+    """
+    if use_mock:
+        print("📋 Using mock insights data")
+        return get_mock_insights()
+
     articles = []
+    failed_sources = []
     target_feeds = {k: v for k, v in RSS_FEEDS.items() if sources is None or k in sources}
 
     for source_name, config in target_feeds.items():
         print(f"📡 Fetching from {source_name}...")
 
         try:
-            feed = feedparser.parse(config["url"])
+            feed = feedparser.parse(config["url"], request_headers={
+                "User-Agent": "Mozilla/5.0 (compatible; InsightFlow/1.0)"
+            })
 
             if feed.bozo and not feed.entries:
-                print(f"  ⚠️ Failed to parse feed for {source_name}")
+                print(f"  ⚠️ Failed to parse feed for {source_name}: {feed.get('bozo_exception', 'Unknown error')}")
+                failed_sources.append(source_name)
                 continue
 
             for entry in feed.entries[:max_per_source]:
@@ -262,7 +279,15 @@ def fetch_rss_feeds(sources: list[str] = None, max_per_source: int = 3) -> list[
 
         except Exception as e:
             print(f"  ❌ Error fetching {source_name}: {e}")
+            failed_sources.append(source_name)
             continue
+
+    if failed_sources:
+        print(f"⚠️ Failed sources: {', '.join(failed_sources)}")
+
+    if not articles:
+        print("⚠️ All RSS feeds failed, returning mock data as fallback")
+        return get_mock_insights()
 
     articles.sort(key=lambda x: x.published, reverse=True)
     return articles
@@ -345,6 +370,9 @@ def get_all_sources() -> list[dict]:
 
 def get_mock_insights() -> list[InsightArticle]:
     """Return mock insights for development/testing."""
+    from datetime import timedelta
+    now = datetime.now()
+
     return [
         InsightArticle(
             id="mock001",
@@ -352,8 +380,8 @@ def get_mock_insights() -> list[InsightArticle]:
             source_icon="🌐",
             title="Global Economic Outlook: Navigating Uncertainty",
             link="https://www.imf.org/en/Blogs/example",
-            published=datetime.now(),
-            summary_raw="The global economy faces a complex mix of challenges including persistent inflation in some regions, shifting monetary policies, and geopolitical tensions.",
+            published=now - timedelta(hours=2),
+            summary_raw="The global economy faces a complex mix of challenges including persistent inflation in some regions, shifting monetary policies, and geopolitical tensions. Growth projections remain cautious amid evolving risks.",
         ),
         InsightArticle(
             id="mock002",
@@ -361,8 +389,8 @@ def get_mock_insights() -> list[InsightArticle]:
             source_icon="🏛️",
             title="Understanding the Current Yield Curve Dynamics",
             link="https://www.stlouisfed.org/on-the-economy/example",
-            published=datetime.now(),
-            summary_raw="The yield curve has been sending mixed signals about the economic outlook. This article examines what the current spread tells us about investor expectations.",
+            published=now - timedelta(hours=5),
+            summary_raw="The yield curve has been sending mixed signals about the economic outlook. This article examines what the current spread tells us about investor expectations and potential recession indicators.",
         ),
         InsightArticle(
             id="mock003",
@@ -370,7 +398,52 @@ def get_mock_insights() -> list[InsightArticle]:
             source_icon="🏦",
             title="Central Bank Digital Currencies: Progress and Challenges",
             link="https://www.bis.org/publ/example",
-            published=datetime.now(),
-            summary_raw="Central banks worldwide are actively exploring CBDCs. This bulletin examines the latest developments and potential implications for the global financial system.",
+            published=now - timedelta(hours=8),
+            summary_raw="Central banks worldwide are actively exploring CBDCs. This bulletin examines the latest developments and potential implications for the global financial system, payments infrastructure, and monetary policy.",
+        ),
+        InsightArticle(
+            id="mock004",
+            source="ECB Blog",
+            source_icon="🇪🇺",
+            title="Inflation Persistence in the Euro Area: A Deep Dive",
+            link="https://www.ecb.europa.eu/press/blog/example",
+            published=now - timedelta(hours=12),
+            summary_raw="While headline inflation has moderated, core inflation remains sticky in the euro area. This analysis explores the drivers of inflation persistence and implications for monetary policy normalization.",
+        ),
+        InsightArticle(
+            id="mock005",
+            source="World Bank",
+            source_icon="🌍",
+            title="Emerging Markets: Resilience Amid Global Headwinds",
+            link="https://blogs.worldbank.org/example",
+            published=now - timedelta(hours=18),
+            summary_raw="Despite challenging global conditions, many emerging markets have shown remarkable resilience. This post examines the factors contributing to their performance and risks that remain on the horizon.",
+        ),
+        InsightArticle(
+            id="mock006",
+            source="IMF Blog",
+            source_icon="🌐",
+            title="The Great Fiscal Challenge: Managing Public Debt",
+            link="https://www.imf.org/en/Blogs/example2",
+            published=now - timedelta(days=1),
+            summary_raw="Government debt levels have surged globally following pandemic-era fiscal support. This article discusses strategies for fiscal consolidation while maintaining growth and social protection.",
+        ),
+        InsightArticle(
+            id="mock007",
+            source="Fed St. Louis",
+            source_icon="🏛️",
+            title="Labor Market Dynamics: What the Data Tells Us",
+            link="https://www.stlouisfed.org/on-the-economy/example2",
+            published=now - timedelta(days=1, hours=6),
+            summary_raw="The US labor market continues to show strength despite rate hikes. This analysis examines job openings, wage growth, and participation trends to assess labor market tightness.",
+        ),
+        InsightArticle(
+            id="mock008",
+            source="BIS",
+            source_icon="🏦",
+            title="Global Banking Sector: Stress Tests and Resilience",
+            link="https://www.bis.org/publ/example2",
+            published=now - timedelta(days=2),
+            summary_raw="Following recent banking sector turbulence, this report assesses the health of global banks through stress test results and capital adequacy metrics. Overall, the system remains resilient.",
         ),
     ]

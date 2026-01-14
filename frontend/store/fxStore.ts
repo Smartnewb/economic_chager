@@ -153,7 +153,7 @@ export const useFXStore = create<FXState>((set, get) => ({
         set({ isLoadingData: true });
 
         try {
-            const response = await fetch("http://localhost:8001/api/fx/data");
+            const response = await fetch("http://localhost:8000/api/fx/data");
 
             if (response.ok) {
                 const data = await response.json();
@@ -196,7 +196,7 @@ export const useFXStore = create<FXState>((set, get) => ({
 
         try {
             // First, check if there's a cached analysis for today (pair-specific)
-            const cacheResponse = await fetch(`http://localhost:8001/api/analyze/fx/cached?language=${language}&selected_pair=${encodeURIComponent(selectedPair)}`);
+            const cacheResponse = await fetch(`http://localhost:8000/api/analyze/fx/cached?language=${language}&selected_pair=${encodeURIComponent(selectedPair)}`);
             if (cacheResponse.ok) {
                 const cacheData = await cacheResponse.json();
                 if (cacheData.cached && cacheData.result) {
@@ -219,7 +219,7 @@ export const useFXStore = create<FXState>((set, get) => ({
             }
 
             // No cache available, request new analysis
-            const response = await fetch("http://localhost:8001/api/analyze/fx", {
+            const response = await fetch("http://localhost:8000/api/analyze/fx", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

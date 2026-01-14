@@ -24,7 +24,7 @@ except ImportError:
 
 @dataclass
 class InsiderTrade:
-    """Individual insider trading transaction"""
+    """Individual insider trading transaction with context metrics"""
     symbol: str
     company_name: str
     reporter_name: str  # CEO, CFO, Director, etc.
@@ -35,6 +35,12 @@ class InsiderTrade:
     price: float
     total_value: float
     shares_owned_after: Optional[int] = None
+    # Context metrics for significance assessment
+    market_cap: Optional[float] = None
+    shares_outstanding: Optional[int] = None
+    pct_of_outstanding: Optional[float] = None
+    pct_of_market_cap: Optional[float] = None
+    significance: Optional[str] = None  # "CRITICAL", "HIGH", "MEDIUM", "LOW"
 
     @property
     def is_buy(self) -> bool:
@@ -55,6 +61,26 @@ class InsiderTrade:
             return "significant"
         else:
             return "minor"
+
+    def calculate_significance(self) -> str:
+        """
+        Calculate significance based on % of outstanding shares.
+        CRITICAL: >1% of outstanding or >0.5% of market cap
+        HIGH: >0.5% of outstanding or >0.2% of market cap
+        MEDIUM: >0.1% of outstanding
+        LOW: <0.1% of outstanding
+        """
+        pct_out = self.pct_of_outstanding or 0
+        pct_cap = self.pct_of_market_cap or 0
+
+        if pct_out > 1.0 or pct_cap > 0.5:
+            return "CRITICAL"
+        elif pct_out > 0.5 or pct_cap > 0.2:
+            return "HIGH"
+        elif pct_out > 0.1:
+            return "MEDIUM"
+        else:
+            return "LOW"
 
 
 @dataclass
@@ -184,6 +210,9 @@ class WhaleTracker:
         },
     }
 
+    # Cache duration in seconds (5 minutes)
+    CACHE_DURATION = 300
+
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize WhaleTracker with FMP API key.
@@ -195,6 +224,49 @@ class WhaleTracker:
         self.base_url = "https://financialmodelingprep.com/api"
         self.cache_dir = Path(__file__).parent / "cache" / "whale"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        # In-memory cache for fast access
+        self._memory_cache: Dict[str, tuple] = {}  # key -> (data, timestamp)
+
+    def _get_cache_key(self, name: str, **kwargs) -> str:
+        """Generate a cache key from function name and arguments."""
+        key_parts = [name] + [f"{k}={v}" for k, v in sorted(kwargs.items()) if v is not None]
+        return "_".join(key_parts)
+
+    def _get_cached(self, cache_key: str) -> Optional[Any]:
+        """Get data from cache if still valid (within CACHE_DURATION)."""
+        # Check memory cache first
+        if cache_key in self._memory_cache:
+            data, cached_time = self._memory_cache[cache_key]
+            if (datetime.now() - cached_time).total_seconds() < self.CACHE_DURATION:
+                return data
+
+        # Check file cache
+        cache_file = self.cache_dir / f"{cache_key}.json"
+        if cache_file.exists():
+            try:
+                mtime = datetime.fromtimestamp(cache_file.stat().st_mtime)
+                if (datetime.now() - mtime).total_seconds() < self.CACHE_DURATION:
+                    with open(cache_file, 'r') as f:
+                        data = json.load(f)
+                        self._memory_cache[cache_key] = (data, mtime)
+                        return data
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        return None
+
+    def _set_cached(self, cache_key: str, data: Any) -> None:
+        """Store data in both memory and file cache."""
+        now = datetime.now()
+        self._memory_cache[cache_key] = (data, now)
+
+        # Also save to file cache
+        cache_file = self.cache_dir / f"{cache_key}.json"
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump(data, f)
+        except (OSError, TypeError):
+            pass
 
     def _make_request(self, endpoint: str, params: Dict = None) -> Optional[Any]:
         """Make authenticated request to FMP API."""
@@ -224,7 +296,7 @@ class WhaleTracker:
         limit: int = 50
     ) -> List[InsiderTrade]:
         """
-        Get recent insider trading activity.
+        Get recent insider trading activity with 5-minute caching.
 
         Args:
             symbol: Stock symbol (e.g., "AAPL"). If None, gets all recent trades.
@@ -233,6 +305,13 @@ class WhaleTracker:
         Returns:
             List of InsiderTrade objects
         """
+        # Check cache first
+        cache_key = self._get_cache_key("insider_trades", symbol=symbol, limit=limit)
+        cached_data = self._get_cached(cache_key)
+        if cached_data is not None:
+            # Reconstruct InsiderTrade objects from cached data
+            return [InsiderTrade(**item) for item in cached_data]
+
         if symbol:
             endpoint = f"/v4/insider-trading"
             params = {"symbol": symbol, "limit": limit}
@@ -267,6 +346,59 @@ class WhaleTracker:
                 trades.append(trade)
             except (ValueError, TypeError) as e:
                 continue
+
+        # Enrich trades with market context
+        trades = self._enrich_insider_trades(trades)
+
+        # Cache the result (convert to dicts for JSON serialization)
+        if trades:
+            self._set_cached(cache_key, [asdict(t) for t in trades])
+
+        return trades
+
+    def _enrich_insider_trades(self, trades: List[InsiderTrade]) -> List[InsiderTrade]:
+        """
+        Enrich insider trades with market cap and % of outstanding shares.
+        This helps assess the significance of each trade.
+        """
+        # Get unique symbols
+        symbols = list(set(t.symbol for t in trades if t.symbol))
+
+        # Batch fetch market data (use cache to avoid repeated API calls)
+        market_data = {}
+        for symbol in symbols[:20]:  # Limit to avoid rate limiting
+            cache_key = f"quote_{symbol}"
+            cached = self._get_cached(cache_key)
+            if cached:
+                market_data[symbol] = cached
+            else:
+                quote = self._make_request(f"/v3/quote/{symbol}")
+                if quote and len(quote) > 0:
+                    market_data[symbol] = {
+                        "market_cap": quote[0].get("marketCap", 0),
+                        "shares_outstanding": quote[0].get("sharesOutstanding", 0)
+                    }
+                    self._set_cached(cache_key, market_data[symbol])
+
+        # Enrich each trade
+        for trade in trades:
+            data = market_data.get(trade.symbol, {})
+            market_cap = data.get("market_cap", 0)
+            shares_outstanding = data.get("shares_outstanding", 0)
+
+            if market_cap:
+                trade.market_cap = market_cap
+            if shares_outstanding:
+                trade.shares_outstanding = shares_outstanding
+                trade.pct_of_outstanding = round(
+                    (trade.shares_transacted / shares_outstanding) * 100, 6
+                ) if shares_outstanding > 0 else 0
+            if market_cap > 0:
+                trade.pct_of_market_cap = round(
+                    (trade.total_value / market_cap) * 100, 6
+                )
+
+            trade.significance = trade.calculate_significance()
 
         return trades
 
@@ -368,7 +500,7 @@ class WhaleTracker:
         limit: int = 20
     ) -> List[GuruHolding]:
         """
-        Get holdings from a famous investor's 13F filing.
+        Get holdings from a famous investor's 13F filing with 5-minute caching.
 
         Args:
             guru_id: Key from GURU_FUNDS dict (e.g., "berkshire", "bridgewater")
@@ -377,6 +509,12 @@ class WhaleTracker:
         Returns:
             List of GuruHolding objects
         """
+        # Check cache first
+        cache_key = self._get_cache_key("guru_holdings", guru_id=guru_id, limit=limit)
+        cached_data = self._get_cached(cache_key)
+        if cached_data is not None:
+            return [GuruHolding(**item) for item in cached_data]
+
         guru = self.GURU_FUNDS.get(guru_id)
         if not guru:
             return []
@@ -408,6 +546,10 @@ class WhaleTracker:
                 holdings.append(holding)
             except (ValueError, TypeError):
                 continue
+
+        # Cache the result
+        if holdings:
+            self._set_cached(cache_key, [asdict(h) for h in holdings])
 
         return holdings
 
@@ -504,7 +646,7 @@ class WhaleTracker:
 
     def get_whale_alerts(self, symbols: List[str] = None, limit: int = 20) -> List[WhaleAlert]:
         """
-        Get aggregated whale alerts combining insider trades and guru moves.
+        Get aggregated whale alerts combining insider trades and guru moves with 5-minute caching.
 
         Args:
             symbols: List of symbols to track. If None, gets market-wide alerts.
@@ -513,6 +655,13 @@ class WhaleTracker:
         Returns:
             List of WhaleAlert objects sorted by timestamp
         """
+        # Check cache first
+        symbols_key = "_".join(sorted(symbols)) if symbols else "all"
+        cache_key = self._get_cache_key("whale_alerts", symbols=symbols_key, limit=limit)
+        cached_data = self._get_cached(cache_key)
+        if cached_data is not None:
+            return [WhaleAlert(**item) for item in cached_data]
+
         alerts = []
 
         # Get recent insider trades
@@ -570,7 +719,13 @@ class WhaleTracker:
 
         # Sort by timestamp (most recent first) and limit
         alerts.sort(key=lambda x: x.timestamp, reverse=True)
-        return alerts[:limit]
+        result = alerts[:limit]
+
+        # Cache the result
+        if result:
+            self._set_cached(cache_key, [asdict(a) for a in result])
+
+        return result
 
     # ========================================================================
     # API RESPONSE FORMATTERS
@@ -578,10 +733,17 @@ class WhaleTracker:
 
     def get_radar_data(self, symbols: List[str] = None) -> Dict[str, Any]:
         """
-        Get complete radar data for the Whale Radar UI.
+        Get complete radar data for the Whale Radar UI with 5-minute caching.
 
         Returns structured data for the "sonar" visualization.
         """
+        # Check cache first
+        symbols_key = "_".join(sorted(symbols)) if symbols else "all"
+        cache_key = self._get_cache_key("radar_data", symbols=symbols_key)
+        cached_data = self._get_cached(cache_key)
+        if cached_data is not None:
+            return cached_data
+
         alerts = self.get_whale_alerts(symbols, limit=20)
 
         # Group alerts by type
@@ -592,7 +754,7 @@ class WhaleTracker:
         bullish_count = len([a for a in alerts if a.signal == "bullish"])
         bearish_count = len([a for a in alerts if a.signal == "bearish"])
 
-        return {
+        result = {
             "timestamp": datetime.now().isoformat(),
             "summary": {
                 "total_signals": len(alerts),
@@ -604,24 +766,58 @@ class WhaleTracker:
             },
             "alerts": [asdict(a) for a in alerts],
             "clusters": [asdict(a) for a in cluster_alerts],
-            "radar_blips": self._format_radar_blips(alerts),
+            "blips": self._format_radar_blips(alerts),
             "ai_context": self._generate_ai_context(alerts)
         }
 
+        # Cache the result
+        self._set_cached(cache_key, result)
+
+        return result
+
     def _format_radar_blips(self, alerts: List[WhaleAlert]) -> List[Dict]:
-        """Format alerts as radar blips for visualization."""
+        """Format alerts as radar blips for visualization.
+
+        Returns blips with:
+        - angle: 0-360 degrees, evenly distributed
+        - distance: 0-1, based on magnitude (closer = larger magnitude)
+        - strength: 0-1, based on magnitude
+        - symbol, label, color for display
+        """
         blips = []
-        for alert in alerts[:15]:  # Limit for visualization
-            size = {"massive": 4, "large": 3, "significant": 2, "moderate": 1}.get(
-                alert.magnitude, 1
-            )
+        num_alerts = min(len(alerts), 20)  # Limit to 20 blips for visualization
+
+        for i, alert in enumerate(alerts[:20]):
+            # Calculate angle (evenly distribute around the circle)
+            angle = (i * 360 / max(num_alerts, 1)) % 360
+
+            # Calculate magnitude-based values
+            magnitude_map = {"massive": 1.0, "large": 0.8, "significant": 0.6, "moderate": 0.4}
+            magnitude_value = magnitude_map.get(alert.magnitude, 0.5)
+
+            # Distance: inverse of magnitude (larger moves closer to center)
+            distance = 1.0 - (magnitude_value * 0.6)  # Range: 0.4 - 1.0
+
+            # Strength: same as magnitude
+            strength = magnitude_value
+
+            # Color based on signal
+            if alert.signal == "bullish":
+                color = "#10b981"  # Emerald green
+            elif alert.signal == "bearish":
+                color = "#ef4444"  # Red
+            else:
+                color = "#f59e0b"  # Amber for neutral
+
             blips.append({
                 "symbol": alert.symbol,
+                "angle": angle,
+                "distance": distance,
+                "strength": strength,
+                "label": alert.headline,
+                "color": color,
                 "type": alert.alert_type,
                 "signal": alert.signal,
-                "size": size,  # Size of the blip on radar
-                "color": "green" if alert.signal == "bullish" else "red",
-                "headline": alert.headline,
                 "timestamp": alert.timestamp
             })
         return blips
@@ -669,6 +865,9 @@ class WhaleTracker:
 
     def _get_mock_insider_trades(self, symbol: Optional[str] = None) -> List[InsiderTrade]:
         """Return mock insider trades for demo/testing."""
+        from datetime import datetime, timedelta
+        today = datetime.now()
+
         mock_trades = [
             InsiderTrade(
                 symbol="AAPL",
@@ -676,7 +875,7 @@ class WhaleTracker:
                 reporter_name="Tim Cook",
                 reporter_title="CEO",
                 transaction_type="S-Sale",
-                transaction_date="2024-01-15",
+                transaction_date=(today - timedelta(days=1)).strftime("%Y-%m-%d"),
                 shares_transacted=50000,
                 price=185.50,
                 total_value=9275000.0,
@@ -688,7 +887,7 @@ class WhaleTracker:
                 reporter_name="Jensen Huang",
                 reporter_title="CEO",
                 transaction_type="S-Sale",
-                transaction_date="2024-01-14",
+                transaction_date=(today - timedelta(days=2)).strftime("%Y-%m-%d"),
                 shares_transacted=100000,
                 price=545.00,
                 total_value=54500000.0,
@@ -700,22 +899,22 @@ class WhaleTracker:
                 reporter_name="Mark Zuckerberg",
                 reporter_title="CEO",
                 transaction_type="P-Purchase",
-                transaction_date="2024-01-12",
+                transaction_date=(today - timedelta(days=3)).strftime("%Y-%m-%d"),
                 shares_transacted=25000,
-                price=375.00,
-                total_value=9375000.0,
+                price=575.00,
+                total_value=14375000.0,
                 shares_owned_after=350000000
             ),
             InsiderTrade(
                 symbol="TSLA",
                 company_name="Tesla Inc.",
                 reporter_name="Robyn Denholm",
-                reporter_title="Director",
+                reporter_title="Chairman",
                 transaction_type="P-Purchase",
-                transaction_date="2024-01-10",
+                transaction_date=(today - timedelta(days=4)).strftime("%Y-%m-%d"),
                 shares_transacted=5000,
-                price=225.00,
-                total_value=1125000.0,
+                price=425.00,
+                total_value=2125000.0,
                 shares_owned_after=50000
             ),
             InsiderTrade(
@@ -724,13 +923,262 @@ class WhaleTracker:
                 reporter_name="Jamie Dimon",
                 reporter_title="CEO",
                 transaction_type="P-Purchase",
-                transaction_date="2024-01-08",
+                transaction_date=(today - timedelta(days=5)).strftime("%Y-%m-%d"),
                 shares_transacted=10000,
-                price=170.00,
-                total_value=1700000.0,
+                price=245.00,
+                total_value=2450000.0,
                 shares_owned_after=8500000
             ),
+            InsiderTrade(
+                symbol="MSFT",
+                company_name="Microsoft Corporation",
+                reporter_name="Satya Nadella",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=2)).strftime("%Y-%m-%d"),
+                shares_transacted=35000,
+                price=420.00,
+                total_value=14700000.0,
+                shares_owned_after=850000
+            ),
+            InsiderTrade(
+                symbol="GOOGL",
+                company_name="Alphabet Inc.",
+                reporter_name="Sundar Pichai",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=3)).strftime("%Y-%m-%d"),
+                shares_transacted=20000,
+                price=185.00,
+                total_value=3700000.0,
+                shares_owned_after=420000
+            ),
+            InsiderTrade(
+                symbol="AMZN",
+                company_name="Amazon.com Inc.",
+                reporter_name="Andy Jassy",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=4)).strftime("%Y-%m-%d"),
+                shares_transacted=15000,
+                price=225.00,
+                total_value=3375000.0,
+                shares_owned_after=95000
+            ),
+            InsiderTrade(
+                symbol="BRK.B",
+                company_name="Berkshire Hathaway Inc.",
+                reporter_name="Warren Buffett",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=6)).strftime("%Y-%m-%d"),
+                shares_transacted=5000,
+                price=460.00,
+                total_value=2300000.0,
+                shares_owned_after=250000
+            ),
+            InsiderTrade(
+                symbol="V",
+                company_name="Visa Inc.",
+                reporter_name="Ryan McInerney",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=7)).strftime("%Y-%m-%d"),
+                shares_transacted=8000,
+                price=310.00,
+                total_value=2480000.0,
+                shares_owned_after=125000
+            ),
+            # Healthcare sector
+            InsiderTrade(
+                symbol="UNH",
+                company_name="UnitedHealth Group",
+                reporter_name="Andrew Witty",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=2)).strftime("%Y-%m-%d"),
+                shares_transacted=3000,
+                price=520.00,
+                total_value=1560000.0,
+                shares_owned_after=45000
+            ),
+            InsiderTrade(
+                symbol="JNJ",
+                company_name="Johnson & Johnson",
+                reporter_name="Joaquin Duato",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=3)).strftime("%Y-%m-%d"),
+                shares_transacted=5000,
+                price=155.00,
+                total_value=775000.0,
+                shares_owned_after=120000
+            ),
+            # Energy sector
+            InsiderTrade(
+                symbol="XOM",
+                company_name="Exxon Mobil Corporation",
+                reporter_name="Darren Woods",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=4)).strftime("%Y-%m-%d"),
+                shares_transacted=10000,
+                price=105.00,
+                total_value=1050000.0,
+                shares_owned_after=85000
+            ),
+            InsiderTrade(
+                symbol="CVX",
+                company_name="Chevron Corporation",
+                reporter_name="Mike Wirth",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=5)).strftime("%Y-%m-%d"),
+                shares_transacted=8000,
+                price=145.00,
+                total_value=1160000.0,
+                shares_owned_after=95000
+            ),
+            # Retail sector
+            InsiderTrade(
+                symbol="WMT",
+                company_name="Walmart Inc.",
+                reporter_name="Doug McMillon",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=1)).strftime("%Y-%m-%d"),
+                shares_transacted=6000,
+                price=175.00,
+                total_value=1050000.0,
+                shares_owned_after=220000
+            ),
+            InsiderTrade(
+                symbol="COST",
+                company_name="Costco Wholesale",
+                reporter_name="Ron Vachris",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=2)).strftime("%Y-%m-%d"),
+                shares_transacted=2000,
+                price=925.00,
+                total_value=1850000.0,
+                shares_owned_after=18000
+            ),
+            # Industrial sector
+            InsiderTrade(
+                symbol="CAT",
+                company_name="Caterpillar Inc.",
+                reporter_name="Jim Umpleby",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=3)).strftime("%Y-%m-%d"),
+                shares_transacted=4000,
+                price=380.00,
+                total_value=1520000.0,
+                shares_owned_after=35000
+            ),
+            InsiderTrade(
+                symbol="UPS",
+                company_name="United Parcel Service",
+                reporter_name="Carol Tome",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=4)).strftime("%Y-%m-%d"),
+                shares_transacted=7000,
+                price=135.00,
+                total_value=945000.0,
+                shares_owned_after=28000
+            ),
+            # Semiconductor sector
+            InsiderTrade(
+                symbol="AMD",
+                company_name="Advanced Micro Devices",
+                reporter_name="Lisa Su",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=1)).strftime("%Y-%m-%d"),
+                shares_transacted=25000,
+                price=125.00,
+                total_value=3125000.0,
+                shares_owned_after=850000
+            ),
+            InsiderTrade(
+                symbol="AVGO",
+                company_name="Broadcom Inc.",
+                reporter_name="Hock Tan",
+                reporter_title="CEO",
+                transaction_type="S-Sale",
+                transaction_date=(today - timedelta(days=2)).strftime("%Y-%m-%d"),
+                shares_transacted=5000,
+                price=185.00,
+                total_value=925000.0,
+                shares_owned_after=120000
+            ),
+            # Small/Mid cap examples
+            InsiderTrade(
+                symbol="CRWD",
+                company_name="CrowdStrike Holdings",
+                reporter_name="George Kurtz",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=5)).strftime("%Y-%m-%d"),
+                shares_transacted=8000,
+                price=365.00,
+                total_value=2920000.0,
+                shares_owned_after=145000
+            ),
+            InsiderTrade(
+                symbol="SNOW",
+                company_name="Snowflake Inc.",
+                reporter_name="Sridhar Ramaswamy",
+                reporter_title="CEO",
+                transaction_type="P-Purchase",
+                transaction_date=(today - timedelta(days=6)).strftime("%Y-%m-%d"),
+                shares_transacted=10000,
+                price=165.00,
+                total_value=1650000.0,
+                shares_owned_after=85000
+            ),
         ]
+
+        # Add mock market context data
+        mock_market_caps = {
+            "AAPL": (2_900_000_000_000, 15_500_000_000),  # market_cap, shares_outstanding
+            "NVDA": (3_200_000_000_000, 24_600_000_000),
+            "META": (1_500_000_000_000, 2_600_000_000),
+            "TSLA": (1_300_000_000_000, 3_200_000_000),
+            "JPM": (600_000_000_000, 2_900_000_000),
+            "MSFT": (3_100_000_000_000, 7_400_000_000),
+            "GOOGL": (2_000_000_000_000, 12_300_000_000),
+            "AMZN": (1_900_000_000_000, 10_500_000_000),
+            "BRK.B": (900_000_000_000, 1_300_000_000),
+            "V": (580_000_000_000, 1_900_000_000),
+            "UNH": (480_000_000_000, 920_000_000),
+            "JNJ": (360_000_000_000, 2_400_000_000),
+            "XOM": (460_000_000_000, 4_200_000_000),
+            "CVX": (280_000_000_000, 1_800_000_000),
+            "WMT": (680_000_000_000, 2_700_000_000),
+            "COST": (400_000_000_000, 443_000_000),
+            "CAT": (175_000_000_000, 500_000_000),
+            "UPS": (115_000_000_000, 850_000_000),
+            "AMD": (200_000_000_000, 1_600_000_000),
+            "AVGO": (750_000_000_000, 465_000_000),
+            "CRWD": (80_000_000_000, 240_000_000),
+            "SNOW": (55_000_000_000, 330_000_000),
+        }
+
+        for trade in mock_trades:
+            if trade.symbol in mock_market_caps:
+                market_cap, shares_outstanding = mock_market_caps[trade.symbol]
+                trade.market_cap = market_cap
+                trade.shares_outstanding = shares_outstanding
+                trade.pct_of_outstanding = round(
+                    (trade.shares_transacted / shares_outstanding) * 100, 6
+                )
+                trade.pct_of_market_cap = round(
+                    (trade.total_value / market_cap) * 100, 6
+                )
+                trade.significance = trade.calculate_significance()
 
         if symbol:
             return [t for t in mock_trades if t.symbol == symbol.upper()]
@@ -814,7 +1262,153 @@ class WhaleTracker:
                     quarter="Q4 2024",
                     filing_date="2024-11-14"
                 ),
-            ]
+            ],
+            "bridgewater": [
+                GuruHolding(
+                    fund_name="Bridgewater Associates",
+                    fund_manager="Ray Dalio",
+                    symbol="SPY",
+                    company_name="SPDR S&P 500 ETF",
+                    shares=12_500_000,
+                    value=7_500_000_000,
+                    weight_percent=15.0,
+                    change_type="increased",
+                    change_shares=1_500_000,
+                    change_percent=13.6,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Bridgewater Associates",
+                    fund_manager="Ray Dalio",
+                    symbol="GLD",
+                    company_name="SPDR Gold Trust",
+                    shares=8_000_000,
+                    value=1_800_000_000,
+                    weight_percent=3.6,
+                    change_type="increased",
+                    change_shares=500_000,
+                    change_percent=6.7,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Bridgewater Associates",
+                    fund_manager="Ray Dalio",
+                    symbol="TLT",
+                    company_name="iShares 20+ Year Treasury Bond ETF",
+                    shares=15_000_000,
+                    value=1_350_000_000,
+                    weight_percent=2.7,
+                    change_type="new",
+                    change_shares=15_000_000,
+                    change_percent=100.0,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Bridgewater Associates",
+                    fund_manager="Ray Dalio",
+                    symbol="PG",
+                    company_name="Procter & Gamble Co",
+                    shares=4_200_000,
+                    value=700_000_000,
+                    weight_percent=1.4,
+                    change_type="unchanged",
+                    change_shares=0,
+                    change_percent=0,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+            ],
+            "renaissance": [
+                GuruHolding(
+                    fund_name="Renaissance Technologies",
+                    fund_manager="Jim Simons",
+                    symbol="NVDA",
+                    company_name="NVIDIA Corporation",
+                    shares=2_500_000,
+                    value=1_375_000_000,
+                    weight_percent=2.0,
+                    change_type="increased",
+                    change_shares=800_000,
+                    change_percent=47.0,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Renaissance Technologies",
+                    fund_manager="Jim Simons",
+                    symbol="META",
+                    company_name="Meta Platforms Inc",
+                    shares=1_800_000,
+                    value=1_035_000_000,
+                    weight_percent=1.5,
+                    change_type="increased",
+                    change_shares=400_000,
+                    change_percent=28.6,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Renaissance Technologies",
+                    fund_manager="Jim Simons",
+                    symbol="GOOGL",
+                    company_name="Alphabet Inc",
+                    shares=3_200_000,
+                    value=592_000_000,
+                    weight_percent=0.9,
+                    change_type="decreased",
+                    change_shares=-500_000,
+                    change_percent=-13.5,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+            ],
+            "pershing": [
+                GuruHolding(
+                    fund_name="Pershing Square Capital",
+                    fund_manager="Bill Ackman",
+                    symbol="CMG",
+                    company_name="Chipotle Mexican Grill",
+                    shares=850_000,
+                    value=2_550_000_000,
+                    weight_percent=18.0,
+                    change_type="unchanged",
+                    change_shares=0,
+                    change_percent=0,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Pershing Square Capital",
+                    fund_manager="Bill Ackman",
+                    symbol="HLT",
+                    company_name="Hilton Worldwide",
+                    shares=5_500_000,
+                    value=1_375_000_000,
+                    weight_percent=10.0,
+                    change_type="increased",
+                    change_shares=500_000,
+                    change_percent=10.0,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+                GuruHolding(
+                    fund_name="Pershing Square Capital",
+                    fund_manager="Bill Ackman",
+                    symbol="GOOG",
+                    company_name="Alphabet Inc Class C",
+                    shares=3_200_000,
+                    value=592_000_000,
+                    weight_percent=4.2,
+                    change_type="new",
+                    change_shares=3_200_000,
+                    change_percent=100.0,
+                    quarter="Q4 2024",
+                    filing_date="2024-11-14"
+                ),
+            ],
         }
 
         return mock_holdings.get(guru_id, mock_holdings["berkshire"])

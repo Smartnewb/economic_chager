@@ -7,6 +7,7 @@ import Navigation, { StatusIndicator } from "@/components/Navigation";
 import InsightCard from "@/components/insights/InsightCard";
 import BehavioralBiasWidget from "@/components/insights/BehavioralBiasWidget";
 import InsightAnalysisPanel from "@/components/insights/InsightAnalysisPanel";
+import KeyThemesPanel from "@/components/insights/KeyThemesPanel";
 
 export default function InsightsPage() {
   const {
@@ -26,10 +27,17 @@ export default function InsightsPage() {
     selectArticle,
     requestAnalysis,
     closeAnalysisPanel,
+    isAnalyzingMultiple,
+    multiAnalysisResult,
+    multiAnalysisError,
+    showThemesPanel,
+    requestMultiAnalysis,
+    closeThemesPanel,
   } = useInsightStore();
   const { t, language } = useI18n();
 
-  const [selectedSource, setSelectedSource] = useState<string>("all");
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [showSentimentBreakdown, setShowSentimentBreakdown] = useState(false);
 
   useEffect(() => {
     fetchSources();
@@ -37,11 +45,33 @@ export default function InsightsPage() {
     fetchBehavioralBias();
   }, [fetchSources, fetchArticles, fetchBehavioralBias]);
 
-  // Filter articles by selected source
+  // Toggle source selection
+  const toggleSource = (sourceName: string) => {
+    setSelectedSources((prev) => {
+      if (prev.includes(sourceName)) {
+        return prev.filter((s) => s !== sourceName);
+      }
+      return [...prev, sourceName];
+    });
+  };
+
+  // Select all sources
+  const selectAllSources = () => {
+    setSelectedSources([]);
+  };
+
+  // Filter articles by selected sources
   const filteredArticles =
-    selectedSource === "all"
+    selectedSources.length === 0
       ? articles
-      : articles.filter((a) => a.source === selectedSource);
+      : articles.filter((a) => selectedSources.includes(a.source));
+
+  // Calculate sentiment breakdown
+  const sentimentBreakdown = {
+    bullish: filteredArticles.filter((a) => (a.sentiment || 0) > 0.2).length,
+    neutral: filteredArticles.filter((a) => Math.abs(a.sentiment || 0) <= 0.2).length,
+    bearish: filteredArticles.filter((a) => (a.sentiment || 0) < -0.2).length,
+  };
 
   // Handle article selection
   const handleSelectArticle = (article: InsightArticle) => {
@@ -52,6 +82,12 @@ export default function InsightsPage() {
   const handleAnalyze = async () => {
     if (!selectedArticle) return;
     await requestAnalysis(selectedArticle, language);
+  };
+
+  // Handle analyze themes for filtered articles
+  const handleAnalyzeThemes = async () => {
+    if (filteredArticles.length === 0) return;
+    await requestMultiAnalysis(filteredArticles, language);
   };
 
   // Close panel handler
@@ -93,13 +129,48 @@ export default function InsightsPage() {
             </div>
           )}
 
-          {/* Source Filter */}
+          {/* Source Filter - Multi-select */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-400 uppercase">Sources</span>
+                <span className="text-xs text-gray-500">
+                  ({selectedSources.length === 0 ? 'All' : `${selectedSources.length} selected`})
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleAnalyzeThemes}
+                  disabled={filteredArticles.length === 0 || isAnalyzingMultiple}
+                  className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-purple-500/20"
+                >
+                  {isAnalyzingMultiple ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>{language === "ko" ? "분석 중..." : "Analyzing..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🔍</span>
+                      <span>{language === "ko" ? "테마 분석" : "Analyze Themes"}</span>
+                      <span className="opacity-70">({filteredArticles.length})</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowSentimentBreakdown(!showSentimentBreakdown)}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                >
+                  📊 {showSentimentBreakdown ? 'Hide' : 'Show'} Sentiment Breakdown
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => setSelectedSource("all")}
+                onClick={selectAllSources}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                  selectedSource === "all"
+                  selectedSources.length === 0
                     ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                     : "bg-white/5 text-gray-400 border border-transparent hover:text-white hover:bg-white/10"
                 }`}
@@ -109,17 +180,62 @@ export default function InsightsPage() {
               {sources.map((source) => (
                 <button
                   key={source.name}
-                  onClick={() => setSelectedSource(source.name)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                    selectedSource === source.name
+                  onClick={() => toggleSource(source.name)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 ${
+                    selectedSources.includes(source.name)
                       ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                       : "bg-white/5 text-gray-400 border border-transparent hover:text-white hover:bg-white/10"
                   }`}
                 >
+                  {selectedSources.includes(source.name) && <span className="text-emerald-400">✓</span>}
                   {source.icon} {source.name}
                 </button>
               ))}
             </div>
+
+            {/* Sentiment Breakdown */}
+            {showSentimentBreakdown && (
+              <div className="mt-4 p-4 bg-[#0f1117] rounded-lg border border-white/5">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 uppercase">Sentiment Distribution</span>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                      <span className="text-sm text-green-400 font-mono">{sentimentBreakdown.bullish}</span>
+                      <span className="text-xs text-gray-500">Bullish</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-gray-500"></span>
+                      <span className="text-sm text-gray-400 font-mono">{sentimentBreakdown.neutral}</span>
+                      <span className="text-xs text-gray-500">Neutral</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                      <span className="text-sm text-red-400 font-mono">{sentimentBreakdown.bearish}</span>
+                      <span className="text-xs text-gray-500">Bearish</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sentiment Bar */}
+                <div className="mt-3 h-2 bg-[#27272a] rounded-full overflow-hidden flex">
+                  <div
+                    className="bg-green-500 transition-all"
+                    style={{ width: `${(sentimentBreakdown.bullish / filteredArticles.length) * 100 || 0}%` }}
+                  />
+                  <div
+                    className="bg-gray-500 transition-all"
+                    style={{ width: `${(sentimentBreakdown.neutral / filteredArticles.length) * 100 || 0}%` }}
+                  />
+                  <div
+                    className="bg-red-500 transition-all"
+                    style={{ width: `${(sentimentBreakdown.bearish / filteredArticles.length) * 100 || 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Loading State */}
@@ -292,6 +408,17 @@ export default function InsightsPage() {
           isAnalyzing={isAnalyzing}
           error={analysisError}
           onClose={handleClosePanel}
+        />
+      )}
+
+      {/* Key Themes Panel */}
+      {showThemesPanel && (
+        <KeyThemesPanel
+          result={multiAnalysisResult}
+          isLoading={isAnalyzingMultiple}
+          error={multiAnalysisError}
+          onClose={closeThemesPanel}
+          language={language}
         />
       )}
     </div>

@@ -3,14 +3,27 @@
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCountryStore, AVAILABLE_COUNTRIES } from "@/store/countryStore";
-import EconomicRadarChart from "@/components/country/EconomicRadarChart";
 import FourPillarCards from "@/components/country/FourPillarCards";
 import CountryAnalysisTriggerButton from "@/components/country/CountryAnalysisTriggerButton";
 import CountryAnalysisPanel from "@/components/country/CountryAnalysisPanel";
 import { GlobalReportCard, IMFOutlookChart, InstitutionalAnalysisPanel } from "@/components/institutional";
 import Navigation from "@/components/Navigation";
 import { useI18n } from "@/lib/i18n";
+
+// Dynamic import for heavy Recharts components
+const EconomicRadarChart = dynamic(
+    () => import("@/components/country/EconomicRadarChart"),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="h-[350px] bg-[#0f1117] rounded-xl border border-white/5 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+            </div>
+        ),
+    }
+);
 
 export default function CountryDetailPage() {
     const params = useParams();
