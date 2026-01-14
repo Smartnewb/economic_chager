@@ -1,0 +1,137 @@
+{
+  "timestamp": "2026-01-14T04:37:38.623395",
+  "data": [
+    {
+      "symbol": "^DJI",
+      "name": "Dow Jones",
+      "country": "United States",
+      "region": "US",
+      "flag": "\ud83c\uddfa\ud83c\uddf8",
+      "price": 49204.72,
+      "change": -0.78,
+      "change_value": -385.48,
+      "market_cap": 15000
+    },
+    {
+      "symbol": "^IXIC",
+      "name": "NASDAQ",
+      "country": "United States",
+      "region": "US",
+      "flag": "\ud83c\uddfa\ud83c\uddf8",
+      "price": 23657.39,
+      "change": -0.32,
+      "change_value": -76.51,
+      "market_cap": 25000
+    },
+    {
+      "symbol": "^GSPC",
+      "name": "S&P 500",
+      "country": "United States",
+      "region": "US",
+      "flag": "\ud83c\uddfa\ud83c\uddf8",
+      "price": 6953.2,
+      "change": -0.34,
+      "change_value": -24.07,
+      "market_cap": 45000
+    },
+    {
+      "symbol": "^HSI",
+      "name": "Hang Seng",
+      "country": "Hong Kong",
+      "region": "Asia",
+      "flag": "\ud83c\udded\ud83c\uddf0",
+      "price": 26848.47,
+      "change": 0.9,
+      "change_value": 239.99,
+      "market_cap": 4500
+    },
+    {
+      "symbol": "^KS11",
+      "name": "KOSPI",
+      "country": "South Korea",
+      "region": "Asia",
+      "flag": "\ud83c\uddf0\ud83c\uddf7",
+      "price": 4692.64,
+      "change": 1.47,
+      "change_value": 67.85,
+      "market_cap": 1800
+    },
+    {
+      "symbol": "^N225",
+      "name": "Nikkei 225",
+      "country": "Japan",
+      "region": "Asia",
+      "flag": "\ud83c\uddef\ud83c\uddf5",
+      "price": 53549.16,
+      "change": 3.1,
+      "change_value": 1609.27,
+      "market_cap": 6000
+    },
+    {
+      "symbol": "000001.SS",
+      "name": "Shanghai",
+      "country": "China",
+      "region": "Asia",
+      "flag": "\ud83c\udde8\ud83c\uddf3",
+      "price": 4138.76,
+      "change": -0.64,
+      "change_value": -26.53,
+      "market_cap": 7000
+    },
+    {
+      "symbol": "^FCHI",
+      "name": "CAC 40",
+      "country": "France",
+      "region": "EU",
+      "flag": "\ud83c\uddeb\ud83c\uddf7",
+      "price": 8347.2,
+      "change": -0.14,
+      "change_value": -11.56,
+      "market_cap": 2500
+    },
+    {
+      "symbol": "^GDAXI",
+      "name": "DAX",
+      "country": "Germany",
+      "region": "EU",
+      "flag": "\ud83c\udde9\ud83c\uddea",
+      "price": 25420.66,
+      "change": 0.06,
+      "change_value": 15.32,
+      "market_cap": 2200
+    },
+    {
+      "symbol": "^STOXX50E",
+      "name": "Euro Stoxx 50",
+      "country": "Eurozone",
+      "region": "EU",
+      "flag": "\ud83c\uddea\ud83c\uddfa",
+      "price": 6029.83,
+      "change": 0.22,
+      "change_value": 13.53,
+      "market_cap": 3500
+    },
+    {
+      "symbol": "^FTSE",
+      "name": "FTSE 100",
+      "country": "United Kingdom",
+      "region": "EU",
+      "flag": "\ud83c\uddec\ud83c\udde7",
+      "price": 10137.35,
+      "change": -0.03,
+      "change_value": -3.35,
+      "market_cap": 2800
+    },
+    {
+      "symbol": "^BVSP",
+      "name": "Bovespa",
+      "country": "Brazil",
+      "region": "Americas",
+      "flag": "\ud83c\udde7\ud83c\uddf7",
+      "price": 161920.44,
+      "change": -0.75,
+      "change_value": -1229.56,
+      "market_cap": 800
+    }
+  ]
+}

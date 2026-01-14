@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+:root {
+  --background: #050505;
+  /* Deep black */
+  --foreground: #eef2f6;
+  --accent-gold: #fbbf24;
+  --accent-blue: #3b82f6;
+  --accent-red: #ef4444;
+  --accent-green: #10b981;
+  --panel-bg: #111116;
+  /* Solid dark gray, slight blue tint */
+  --panel-border: #27272a;
+  --input-bg: #09090b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow: hidden;
+  letter-spacing: -0.01em;
+}
+
+/* Trading Terminal Panel */
+.trading-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  /* Sharper corners */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+}
+
+/* Input Fields */
+.trading-input {
+  background: var(--input-bg);
+  border: 1px solid var(--panel-border);
+  color: #fff;
+  transition: border-color 0.15s ease;
+}
+
+.trading-input:focus {
+  border-color: var(--accent-blue);
+  outline: none;
+}
+
+/* Scrollbar styling - Slim and dark */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Risk-on/Risk-off color classes */
+.text-risk-on {
+  color: var(--accent-gold);
+}
+
+.text-risk-off {
+  color: var(--accent-blue);
+}
+
+.text-bullish {
+  color: var(--accent-green);
+}
+
+.text-bearish {
+  color: var(--accent-red);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Typing indicator */
+@keyframes bounce {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+
+  30% {
+    transform: translateY(-3px);
+  }
+}
+
+.typing-dot {
+  animation: bounce 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(to right, #60a5fa, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

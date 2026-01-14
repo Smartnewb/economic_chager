@@ -1,0 +1,14 @@
+langchain>=0.1.0
+langgraph>=0.0.40
+langchain-openai>=0.0.5
+python-dotenv>=1.0.0
+fastapi>=0.109.0
+uvicorn>=0.27.0
+feedparser>=6.0.0
+httpx>=0.26.0
+beautifulsoup4>=4.12.0
+
+# Real-time Market Data
+yfinance>=0.2.36
+pandas>=2.0.0
+requests>=2.31.0

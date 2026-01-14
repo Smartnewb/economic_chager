@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-01-14T04:37:39.174976",
+  "data": [
+    {
+      "sector": "Communication Services",
+      "short_name": "Comm",
+      "change": -0.73,
+      "market_cap": 2715,
+      "top_stock": "XLC",
+      "top_stock_change": -0.88
+    },
+    {
+      "sector": "Industrials",
+      "short_name": "Industrial",
+      "change": 0.54,
+      "market_cap": 2555,
+      "top_stock": "XLI",
+      "top_stock_change": 0.65
+    },
+    {
+      "sector": "Consumer Discretionary",
+      "short_name": "Consumer",
+      "change": -0.7,
+      "market_cap": 2434,
+      "top_stock": "XLY",
+      "top_stock_change": -0.84
+    },
+    {
+      "sector": "Information Technology",
+      "short_name": "Tech",
+      "change": -0.28,
+      "market_cap": 9248,
+      "top_stock": "XLK",
+      "top_stock_change": -0.34
+    },
+    {
+      "sector": "Health Care",
+      "short_name": "Health",
+      "change": -0.47,
+      "market_cap": 3971,
+      "top_stock": "XLV",
+      "top_stock_change": -0.56
+    },
+    {
+      "sector": "Financials",
+      "short_name": "Finance",
+      "change": -1.81,
+      "market_cap": 5311,
+      "top_stock": "XLF",
+      "top_stock_change": -2.17
+    },
+    {
+      "sector": "Consumer Staples",
+      "short_name": "Staples",
+      "change": 1.1,
+      "market_cap": 1470,
+      "top_stock": "XLP",
+      "top_stock_change": 1.32
+    },
+    {
+      "sector": "Real Estate",
+      "short_name": "Real Est",
+      "change": 0.65,
+      "market_cap": 738,
+      "top_stock": "XLRE",
+      "top_stock_change": 0.78
+    },
+    {
+      "sector": "Energy",
+      "short_name": "Energy",
+      "change": 1.58,
+      "market_cap": 2648,
+      "top_stock": "XLE",
+      "top_stock_change": 1.89
+    },
+    {
+      "sector": "Materials",
+      "short_name": "Materials",
+      "change": 0.2,
+      "market_cap": 536,
+      "top_stock": "XLB",
+      "top_stock_change": 0.23
+    },
+    {
+      "sector": "Utilities",
+      "short_name": "Utilities",
+      "change": 0.54,
+      "market_cap": 2177,
+      "top_stock": "XLU",
+      "top_stock_change": 0.65
+    }
+  ]
+}

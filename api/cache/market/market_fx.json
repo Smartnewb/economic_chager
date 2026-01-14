@@ -1,0 +1,134 @@
+{
+  "timestamp": "2026-01-13T02:29:48.670353",
+  "data": {
+    "dollarIndex": {
+      "value": 98.88,
+      "change24h": -0.26,
+      "trend": "weak"
+    },
+    "majorPairs": [
+      {
+        "pair": "USD/JPY",
+        "rate": 158.1,
+        "change24h": 0.78,
+        "high24h": 158.21,
+        "low24h": 157.51,
+        "timestamp": "2026-01-13T02:29:47.084300"
+      },
+      {
+        "pair": "EUR/USD",
+        "rate": 1.1671,
+        "change24h": 0.12,
+        "high24h": 1.1701,
+        "low24h": 1.1627,
+        "timestamp": "2026-01-13T02:29:47.212259"
+      },
+      {
+        "pair": "GBP/USD",
+        "rate": 1.3461,
+        "change24h": 0.17,
+        "high24h": 1.3486,
+        "low24h": 1.3392,
+        "timestamp": "2026-01-13T02:29:47.370942"
+      },
+      {
+        "pair": "USD/CNY",
+        "rate": 6.9726,
+        "change24h": -0.16,
+        "high24h": 6.9831,
+        "low24h": 6.9722,
+        "timestamp": "2026-01-13T02:29:47.501986"
+      },
+      {
+        "pair": "USD/KRW",
+        "rate": 1467.8,
+        "change24h": 1.22,
+        "high24h": 1470.03,
+        "low24h": 1456.13,
+        "timestamp": "2026-01-13T02:29:47.635125"
+      },
+      {
+        "pair": "AUD/USD",
+        "rate": 0.6716,
+        "change24h": 0.23,
+        "high24h": 0.6724,
+        "low24h": 0.6679,
+        "timestamp": "2026-01-13T02:29:47.759977"
+      },
+      {
+        "pair": "USD/CHF",
+        "rate": 0.7974,
+        "change24h": -0.2,
+        "high24h": 0.8018,
+        "low24h": 0.7956,
+        "timestamp": "2026-01-13T02:29:47.891869"
+      },
+      {
+        "pair": "USD/CAD",
+        "rate": 1.3877,
+        "change24h": 0.09,
+        "high24h": 1.3917,
+        "low24h": 1.3863,
+        "timestamp": "2026-01-13T02:29:48.020620"
+      },
+      {
+        "pair": "USD/INR",
+        "rate": 90.11,
+        "change24h": 0.22,
+        "high24h": 90.25,
+        "low24h": 90.08,
+        "timestamp": "2026-01-13T02:29:48.161067"
+      },
+      {
+        "pair": "USD/BRL",
+        "rate": 5.3696,
+        "change24h": -0.32,
+        "high24h": 5.3859,
+        "low24h": 5.3489,
+        "timestamp": "2026-01-13T02:29:48.413661"
+      },
+      {
+        "pair": "USD/MXN",
+        "rate": 17.92,
+        "change24h": -0.26,
+        "high24h": 17.98,
+        "low24h": 17.87,
+        "timestamp": "2026-01-13T02:29:48.541889"
+      }
+    ],
+    "capitalFlows": [
+      {
+        "from": "USA",
+        "to": "Japan",
+        "volume": 0.6,
+        "type": "risk_on"
+      },
+      {
+        "from": "EU",
+        "to": "USA",
+        "volume": 0.4,
+        "type": "risk_on"
+      },
+      {
+        "from": "USA",
+        "to": "China",
+        "volume": 0.4,
+        "type": "risk_on"
+      },
+      {
+        "from": "Japan",
+        "to": "USA",
+        "volume": 0.3,
+        "type": "risk_off"
+      },
+      {
+        "from": "USA",
+        "to": "Korea",
+        "volume": 0.35,
+        "type": "risk_on"
+      }
+    ],
+    "riskSentiment": "risk_on",
+    "lastUpdated": "2026-01-13T02:29:48.669872"
+  }
+}
