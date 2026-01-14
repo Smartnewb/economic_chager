@@ -91,8 +91,164 @@ class ParallelMatch:
 
 
 # Historical crisis/event database for context
+# Includes ancient, medieval, early modern, and modern crises
 HISTORICAL_EVENTS = {
-    # Major crises and their characteristics
+    # =============================================
+    # ANCIENT PERIOD (Before 500 AD)
+    # =============================================
+    "33": {
+        "name": "Financial Crisis of 33 AD",
+        "name_ko": "서기 33년 로마 금융위기",
+        "era": "ancient",
+        "description": "Roman banking crisis due to land credit collapse; Emperor Tiberius injected 100M sesterces to bail out creditors",
+        "description_ko": "토지 담보 대출 붕괴로 인한 로마 은행 위기; 티베리우스 황제가 1억 세스테르스를 투입해 구제금융",
+        "lesson": "First recorded quantitative easing in history",
+        "lesson_ko": "역사상 최초로 기록된 양적완화",
+    },
+    "301": {
+        "name": "Diocletian's Price Edict Failure",
+        "name_ko": "디오클레티아누스 물가통제 실패",
+        "era": "ancient",
+        "description": "Roman Emperor tried to fix prices by edict to combat inflation; caused black markets and economic chaos",
+        "description_ko": "로마 황제가 인플레이션 억제를 위해 가격통제령 발표; 암시장과 경제 혼란 초래",
+        "peak_inflation": 1000.0,  # Approximate annual inflation
+        "lesson": "Price controls always fail - markets will find a way",
+        "lesson_ko": "가격 통제는 항상 실패한다 - 시장은 길을 찾는다",
+    },
+    "400": {
+        "name": "Roman Currency Debasement Crisis",
+        "name_ko": "로마 화폐 가치 절하 위기",
+        "era": "ancient",
+        "description": "Silver content in denarius dropped from 90% to 5% over 200 years; hyperinflation destroyed empire's economy",
+        "description_ko": "데나리우스 은 함량이 200년에 걸쳐 90%에서 5%로 하락; 초인플레이션이 제국 경제 파괴",
+        "lesson": "Currency debasement is the slow death of empires",
+        "lesson_ko": "화폐 가치 절하는 제국의 느린 죽음",
+    },
+    "-404": {
+        "name": "Athenian Economic Collapse",
+        "name_ko": "아테네 경제 붕괴",
+        "era": "ancient",
+        "description": "Athens lost the Peloponnesian War; silver mines at Laurion captured, treasury depleted, used iron coins",
+        "description_ko": "아테네 펠로폰네소스 전쟁 패배; 라우리온 은광 상실, 국고 고갈, 철화 발행",
+        "lesson": "War and resource loss can destroy even dominant economies",
+        "lesson_ko": "전쟁과 자원 상실은 지배적 경제도 파괴할 수 있다",
+    },
+
+    # =============================================
+    # MEDIEVAL PERIOD (500-1500 AD)
+    # =============================================
+    "1294": {
+        "name": "Philip IV French Currency Crisis",
+        "name_ko": "필립 4세 프랑스 화폐 위기",
+        "era": "medieval",
+        "description": "King Philip IV repeatedly debased French currency to fund wars; merchants fled, trade collapsed",
+        "description_ko": "필립 4세가 전쟁 자금 조달을 위해 화폐를 반복적으로 절하; 상인 이탈, 무역 붕괴",
+        "lesson": "Governments always reach for the money printer in crisis",
+        "lesson_ko": "정부는 위기 때 항상 돈을 찍어낸다",
+    },
+    "1340": {
+        "name": "Edward III Default & Bardi-Peruzzi Collapse",
+        "name_ko": "에드워드 3세 디폴트 & 바르디-페루치 붕괴",
+        "era": "medieval",
+        "description": "English King defaulted on loans to Italian super-banks Bardi and Peruzzi, causing medieval 'Lehman moment'",
+        "description_ko": "영국왕이 이탈리아 대형 은행 바르디와 페루치에 대한 대출 불이행, 중세판 '리먼 사태' 촉발",
+        "lesson": "Sovereign default can destroy the global banking system",
+        "lesson_ko": "국가 부도는 글로벌 금융 시스템을 파괴할 수 있다",
+    },
+    "1345": {
+        "name": "Florentine Banking Crisis",
+        "name_ko": "피렌체 은행 위기",
+        "era": "medieval",
+        "description": "Three major Florentine banks collapsed in succession (Bardi, Peruzzi, Acciaiuoli) - 'first modern banking crisis'",
+        "description_ko": "피렌체 3대 은행 연쇄 붕괴 (바르디, 페루치, 아치아이올리) - '최초의 현대식 은행 위기'",
+        "lesson": "Banking contagion is as old as banking itself",
+        "lesson_ko": "은행 전염은 은행업 자체만큼 오래되었다",
+    },
+    "1360": {
+        "name": "14th Century European Liquidity Crisis",
+        "name_ko": "14세기 유럽 유동성 위기",
+        "era": "medieval",
+        "description": "Silver shortage across Europe after mine depletion; deflation caused economic stagnation",
+        "description_ko": "광산 고갈 후 유럽 전역 은 부족; 디플레이션으로 경제 침체",
+        "lesson": "Hard money constraints can choke growth",
+        "lesson_ko": "경화 제약은 성장을 억누를 수 있다",
+    },
+    "1494": {
+        "name": "Medici Bank Collapse",
+        "name_ko": "메디치 은행 붕괴",
+        "era": "medieval",
+        "description": "Europe's largest bank collapsed due to overextension and bad loans to monarchs",
+        "description_ko": "유럽 최대 은행이 과도한 확장과 왕실 부실대출로 붕괴",
+        "lesson": "Even the mightiest banks can fall from hubris",
+        "lesson_ko": "아무리 강한 은행도 오만함으로 무너질 수 있다",
+    },
+
+    # =============================================
+    # EARLY MODERN PERIOD (1500-1800)
+    # =============================================
+    "1557": {
+        "name": "Spanish Habsburg Default",
+        "name_ko": "스페인 합스부르크 디폴트",
+        "era": "early_modern",
+        "description": "Spain declared bankruptcy despite New World silver; first of multiple Spanish defaults",
+        "description_ko": "신대륙 은에도 불구하고 스페인 파산 선언; 스페인 다중 디폴트의 시작",
+        "lesson": "Even unlimited resources can't save a spendthrift state",
+        "lesson_ko": "무한한 자원도 낭비하는 국가를 구할 수 없다",
+    },
+    "1637": {
+        "name": "Tulip Mania Crash",
+        "name_ko": "튤립 파동 붕괴",
+        "era": "early_modern",
+        "description": "Dutch tulip bulb prices crashed 99% - first recorded speculative bubble burst",
+        "description_ko": "네덜란드 튤립 구근 가격 99% 폭락 - 최초로 기록된 투기 버블 붕괴",
+        "forward_return_12m": -99.0,
+        "lesson": "Speculative manias always end the same way - badly",
+        "lesson_ko": "투기 광풍은 항상 같은 방식으로 끝난다 - 비참하게",
+    },
+    "1720_france": {
+        "name": "Mississippi Bubble (France)",
+        "name_ko": "미시시피 버블 (프랑스)",
+        "era": "early_modern",
+        "peak_cape": 60.0,  # Estimated equivalent
+        "description": "John Law's Mississippi Company scheme collapsed, destroying French economy for a generation",
+        "description_ko": "존 로의 미시시피 회사 계획 붕괴, 한 세대 동안 프랑스 경제 파괴",
+        "forward_return_12m": -90.0,
+        "lesson": "Central bank money printing + stock bubble = disaster",
+        "lesson_ko": "중앙은행 돈 찍기 + 주식 버블 = 재앙",
+    },
+    "1720_uk": {
+        "name": "South Sea Bubble (Britain)",
+        "name_ko": "남해 버블 (영국)",
+        "era": "early_modern",
+        "peak_cape": 50.0,
+        "description": "South Sea Company shares rose 10x then crashed; Newton lost fortune, said 'I can calculate celestial motions but not the madness of people'",
+        "description_ko": "남해 회사 주가 10배 상승 후 폭락; 뉴턴 재산 탕진, '천체 운동은 계산할 수 있지만 인간의 광기는 못한다'고 말함",
+        "forward_return_12m": -84.0,
+        "lesson": "Even geniuses can't time bubbles",
+        "lesson_ko": "천재도 버블 타이밍을 맞출 수 없다",
+    },
+    "1763": {
+        "name": "Amsterdam Banking Crisis",
+        "name_ko": "암스테르담 은행 위기",
+        "era": "early_modern",
+        "description": "Post-Seven Years War credit crunch caused wave of bank failures across Europe",
+        "description_ko": "7년 전쟁 후 신용경색으로 유럽 전역 은행 연쇄 파산",
+        "lesson": "War financing creates fragile financial systems",
+        "lesson_ko": "전쟁 금융은 취약한 금융 시스템을 만든다",
+    },
+    "1797": {
+        "name": "British Bank Restriction Act",
+        "name_ko": "영국 은행 제한법",
+        "era": "early_modern",
+        "description": "Bank of England suspended gold convertibility due to war panic; first major fiat currency experiment",
+        "description_ko": "전쟁 공황으로 영란은행 금 태환 중지; 최초의 주요 불환화폐 실험",
+        "lesson": "In crisis, governments always abandon sound money",
+        "lesson_ko": "위기 시 정부는 항상 건전한 화폐를 포기한다",
+    },
+
+    # =============================================
+    # MODERN PERIOD (1800-Present) - Original entries
+    # =============================================
     "1929": {
         "name": "The Great Crash of 1929",
         "name_ko": "1929년 대공황",
@@ -525,17 +681,31 @@ Conditions at that time:
     return context
 
 
-def get_crisis_scenarios(language: str = "en") -> List[Dict]:
+def get_crisis_scenarios(language: str = "en", era: str = "all") -> List[Dict]:
     """
     Get list of available historical crisis scenarios for simulation.
+
+    Args:
+        language: 'en' or 'ko'
+        era: Filter by era - 'ancient', 'medieval', 'early_modern', 'modern', or 'all'
+
+    Returns:
+        List of crisis scenarios
     """
     scenarios = []
 
     for year, event in HISTORICAL_EVENTS.items():
+        # Filter by era if specified
+        event_era = event.get("era", "modern")  # Default to modern for backward compatibility
+        if era != "all" and event_era != era:
+            continue
+
         scenario = {
             "year": year,
+            "era": event_era,
             "name": event.get("name_ko" if language == "ko" else "name", event.get("name", year)),
             "description": event.get("description_ko" if language == "ko" else "description", ""),
+            "lesson": event.get("lesson_ko" if language == "ko" else "lesson", ""),
             "forward_return_12m": event.get("forward_return_12m"),
             "forward_return_24m": event.get("forward_return_24m"),
             "peak_cape": event.get("peak_cape"),
@@ -543,7 +713,46 @@ def get_crisis_scenarios(language: str = "en") -> List[Dict]:
         }
         scenarios.append(scenario)
 
+    # Sort by year (handle negative years for BC dates)
+    def parse_year(year_str: str) -> int:
+        try:
+            # Handle entries like "1720_france" by taking the numeric part
+            numeric_part = year_str.split("_")[0]
+            return int(numeric_part)
+        except ValueError:
+            return 0
+
+    scenarios.sort(key=lambda x: parse_year(x["year"]))
+
     return scenarios
+
+
+def get_available_eras(language: str = "en") -> List[Dict]:
+    """
+    Get list of available eras with counts.
+    """
+    era_counts = {"ancient": 0, "medieval": 0, "early_modern": 0, "modern": 0}
+
+    for event in HISTORICAL_EVENTS.values():
+        era = event.get("era", "modern")
+        if era in era_counts:
+            era_counts[era] += 1
+
+    era_names = {
+        "ancient": {"en": "Ancient (Before 500 AD)", "ko": "고대 (500년 이전)"},
+        "medieval": {"en": "Medieval (500-1500)", "ko": "중세 (500-1500)"},
+        "early_modern": {"en": "Early Modern (1500-1800)", "ko": "근세 (1500-1800)"},
+        "modern": {"en": "Modern (1800-Present)", "ko": "근현대 (1800-현재)"},
+    }
+
+    return [
+        {
+            "key": era,
+            "name": era_names.get(era, {}).get(language, era),
+            "count": count,
+        }
+        for era, count in era_counts.items()
+    ]
 
 
 # Initialize data on module load

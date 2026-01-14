@@ -250,11 +250,11 @@ export const navigationItems = [
     description: "Overview of all markets",
   },
   {
-    href: "/globe",
-    label: "Globe",
-    labelKo: "글로벌",
-    icon: "🌐",
-    description: "World market map",
+    href: "/currency",
+    label: "Currency",
+    labelKo: "환율",
+    icon: "💱",
+    description: "FX rates & analysis",
   },
   {
     href: "/bonds",

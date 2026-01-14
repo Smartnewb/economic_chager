@@ -208,25 +208,47 @@ export const useInsightStore = create<InsightState>((set, get) => ({
     set({ isAnalyzingMultiple: true, multiAnalysisError: null, showThemesPanel: true });
 
     try {
+      console.log("[Insights] Requesting multi-article analysis for", articles.length, "articles");
+
+      const requestBody = {
+        articles: articles.map(a => ({
+          id: a.id,
+          source: a.source,
+          title: a.title,
+          summary_raw: a.summary_raw,
+        })),
+        language,
+      };
+      console.log("[Insights] Request body:", JSON.stringify(requestBody, null, 2));
+
       const res = await fetch(`${API_BASE}/api/insights/analyze-multiple`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          articles: articles.map(a => ({
-            id: a.id,
-            source: a.source,
-            title: a.title,
-            summary_raw: a.summary_raw,
-          })),
-          language,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (!res.ok) throw new Error("Multi-article analysis failed");
+      console.log("[Insights] Response status:", res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[Insights] Error response:", errorText);
+        throw new Error(`Analysis failed: ${res.status} - ${errorText}`);
+      }
+
       const result = await res.json();
+      console.log("[Insights] Analysis result:", result);
+
+      // Validate result structure
+      if (!result.key_themes || !Array.isArray(result.key_themes)) {
+        console.warn("[Insights] No key_themes in result, using empty array");
+        result.key_themes = [];
+      }
+
       set({ multiAnalysisResult: result, isAnalyzingMultiple: false });
     } catch (error) {
-      set({ multiAnalysisError: (error as Error).message, isAnalyzingMultiple: false });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("[Insights] Multi-analysis error:", errorMessage);
+      set({ multiAnalysisError: errorMessage, isAnalyzingMultiple: false });
     }
   },
 

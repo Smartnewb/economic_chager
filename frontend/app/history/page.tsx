@@ -16,8 +16,10 @@ import {
 
 interface CrisisScenario {
     year: string;
+    era: string;
     name: string;
     description: string;
+    lesson?: string;
     forward_return_12m: number | null;
     forward_return_24m: number | null;
     peak_cape: number | null;
@@ -25,6 +27,14 @@ interface CrisisScenario {
     peak_drawdown?: number;
     recovery_months?: number;
 }
+
+interface EraInfo {
+    key: string;
+    name: string;
+    count: number;
+}
+
+type EraFilter = 'all' | 'ancient' | 'medieval' | 'early_modern' | 'modern';
 
 interface SP500DataPoint {
     date: string;
@@ -101,6 +111,8 @@ const generateSP500Data = (): SP500DataPoint[] => {
 
 export default function HistoryPage() {
     const [crises, setCrises] = useState<CrisisScenario[]>([]);
+    const [eras, setEras] = useState<EraInfo[]>([]);
+    const [selectedEra, setSelectedEra] = useState<EraFilter>('all');
     const [parallels, setParallels] = useState<ParallelMatch[]>([]);
     const [currentConditions, setCurrentConditions] = useState<CurrentConditions | null>(null);
     const [historicalContext, setHistoricalContext] = useState<string>('');
@@ -114,15 +126,30 @@ export default function HistoryPage() {
     const [showFactorComparison, setShowFactorComparison] = useState(false);
 
     useEffect(() => {
-        fetchHistoricalData();
+        fetchEras();
+        fetchHistoricalData(selectedEra);
     }, []);
 
-    const fetchHistoricalData = async () => {
+    useEffect(() => {
+        fetchHistoricalData(selectedEra);
+    }, [selectedEra]);
+
+    const fetchEras = async () => {
+        try {
+            const res = await fetch('http://localhost:8000/api/history/eras');
+            const data = await res.json();
+            setEras(data.eras || []);
+        } catch (err) {
+            console.error('Failed to fetch eras:', err);
+        }
+    };
+
+    const fetchHistoricalData = async (era: EraFilter) => {
         try {
             setLoading(true);
             setError(null);
             const [crisesRes, parallelsRes] = await Promise.all([
-                fetch('http://localhost:8000/api/history/crises'),
+                fetch(`http://localhost:8000/api/history/crises?era=${era}`),
                 fetch('http://localhost:8000/api/history/parallel')
             ]);
 
@@ -138,6 +165,26 @@ export default function HistoryPage() {
             setError('Failed to connect to backend. Please ensure the server is running.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getEraColor = (era: string): string => {
+        switch (era) {
+            case 'ancient': return 'text-purple-400 bg-purple-500/10 border-purple-500/30';
+            case 'medieval': return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+            case 'early_modern': return 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+            case 'modern': return 'text-green-400 bg-green-500/10 border-green-500/30';
+            default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
+        }
+    };
+
+    const getEraLabel = (era: string): string => {
+        switch (era) {
+            case 'ancient': return '🏛️ Ancient';
+            case 'medieval': return '⚔️ Medieval';
+            case 'early_modern': return '⛵ Early Modern';
+            case 'modern': return '🏭 Modern';
+            default: return era;
         }
     };
 
@@ -218,15 +265,52 @@ export default function HistoryPage() {
             <div className="flex-1 overflow-auto p-4">
                 {/* Header */}
                 <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-white tracking-wider flex items-center gap-3">
-                        <span className="text-amber-500">📜 HISTORICAL_PATTERNS</span>
-                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20">
-                            100+ YEARS DATA
-                        </span>
-                    </h1>
-                    <p className="text-sm text-gray-400 mt-2">
-                        Learn from market history - Find periods similar to today and understand forward returns
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-white tracking-wider flex items-center gap-3">
+                                <span className="text-amber-500">📜 HISTORICAL_PATTERNS</span>
+                                <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20">
+                                    2500+ YEARS
+                                </span>
+                            </h1>
+                            <p className="text-sm text-gray-400 mt-2">
+                                Learn from market history - From ancient Rome to modern Wall Street
+                            </p>
+                        </div>
+
+                        {/* Era Selector */}
+                        <div className="flex items-center gap-1 bg-[#111116] border border-[#27272a] rounded-lg p-1">
+                            <button
+                                onClick={() => setSelectedEra('all')}
+                                className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+                                    selectedEra === 'all'
+                                        ? 'bg-amber-500 text-white'
+                                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                }`}
+                            >
+                                All Eras
+                            </button>
+                            {(['ancient', 'medieval', 'early_modern', 'modern'] as const).map((era) => {
+                                const eraInfo = eras.find(e => e.key === era);
+                                return (
+                                    <button
+                                        key={era}
+                                        onClick={() => setSelectedEra(era)}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded transition-colors flex items-center gap-1 ${
+                                            selectedEra === era
+                                                ? 'bg-amber-500 text-white'
+                                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                        }`}
+                                    >
+                                        {getEraLabel(era).split(' ')[0]}
+                                        {eraInfo && (
+                                            <span className="text-[10px] opacity-70">({eraInfo.count})</span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Current Conditions Summary */}
@@ -286,7 +370,14 @@ export default function HistoryPage() {
                                             <div className="flex items-start justify-between mb-2">
                                                 <div className="flex-1">
                                                     <div className="font-bold text-white text-base">{crisis.name}</div>
-                                                    <div className="text-[10px] text-gray-500 font-mono">{crisis.year}</div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[10px] text-gray-500 font-mono">{crisis.year}</span>
+                                                        {crisis.era && (
+                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded border ${getEraColor(crisis.era)}`}>
+                                                                {getEraLabel(crisis.era)}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 {forwardReturn !== null && (
                                                     <div className="text-right">
@@ -301,7 +392,14 @@ export default function HistoryPage() {
                                                 )}
                                             </div>
 
-                                            <div className="text-xs text-gray-400 mb-3">{crisis.description}</div>
+                                            <div className="text-xs text-gray-400 mb-2">{crisis.description}</div>
+
+                                            {/* Lesson from history */}
+                                            {crisis.lesson && (
+                                                <div className="text-[10px] text-amber-400 italic bg-amber-500/5 px-2 py-1 rounded border border-amber-500/20 mb-3">
+                                                    💡 {crisis.lesson}
+                                                </div>
+                                            )}
 
                                             <div className="grid grid-cols-2 gap-2 text-[10px]">
                                                 {crisis.peak_cape !== null && (

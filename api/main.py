@@ -45,6 +45,10 @@ from market_service import get_market_service
 from country_service import country_service
 from logger import api_logger, log_api_call, log_execution_time
 from rate_limiter import rate_limit_middleware, response_cache, rate_limit_analysis
+from fx_service import fx_service
+from global_bonds_service import global_bonds_service
+from market_cycle import market_cycle_service
+from cycle_theories import cycle_theories_service
 
 # ============================================
 # ANALYSIS CACHE SYSTEM
@@ -216,6 +220,46 @@ async def run_debate(request: DebateRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# DASHBOARD CYCLE THEORIES ENDPOINTS
+# ============================================
+
+@app.get("/api/dashboard/cycle-theories")
+async def get_all_cycle_theories():
+    """
+    Get all three investment cycle theories analysis.
+    Includes Howard Marks pendulum, Ray Dalio debt cycles, and Kostolany egg.
+    """
+    return cycle_theories_service.get_all_theories()
+
+
+@app.get("/api/dashboard/cycle-theories/howard-marks")
+async def get_howard_marks_theory():
+    """
+    Get Howard Marks' pendulum theory analysis.
+    Shows market sentiment on fear-greed spectrum.
+    """
+    return cycle_theories_service.get_howard_marks_pendulum()
+
+
+@app.get("/api/dashboard/cycle-theories/ray-dalio")
+async def get_ray_dalio_theory():
+    """
+    Get Ray Dalio's debt cycle theory analysis.
+    Shows position in short-term and long-term debt cycles.
+    """
+    return cycle_theories_service.get_ray_dalio_cycles()
+
+
+@app.get("/api/dashboard/cycle-theories/kostolany")
+async def get_kostolany_theory():
+    """
+    Get Kostolany's egg model analysis.
+    Shows market phase: accumulation, markup, distribution, or markdown.
+    """
+    return cycle_theories_service.get_kostolany_egg()
 
 
 # ============================================
@@ -571,6 +615,76 @@ async def analyze_bonds(request: BondAnalysisRequest):
 
 
 # ============================================
+# GLOBAL BONDS ENDPOINTS
+# ============================================
+
+@app.get("/api/bonds/global-yields")
+async def get_global_yields(countries: Optional[str] = None):
+    """
+    Get global bond yields for all maturities across countries.
+    Optional: pass comma-separated country codes (e.g., US,DE,JP,GB)
+    """
+    country_list = countries.split(",") if countries else None
+    return global_bonds_service.get_global_yields(country_list)
+
+
+@app.get("/api/bonds/yield-spreads")
+async def get_yield_spreads(base_country: str = "US"):
+    """
+    Get yield spreads vs a base country (default: US).
+    Returns spreads for all maturities in basis points.
+    """
+    return global_bonds_service.get_yield_spreads(base_country)
+
+
+@app.get("/api/bonds/spread-matrix")
+async def get_spread_matrix():
+    """
+    Get NxN matrix of 10Y yield spreads between all countries.
+    Useful for heatmap visualizations.
+    """
+    return global_bonds_service.get_yield_spread_matrix()
+
+
+@app.get("/api/bonds/sovereign-cds")
+async def get_sovereign_cds():
+    """
+    Get sovereign CDS spreads for credit risk assessment.
+    Lower spread = lower perceived default risk.
+    """
+    return global_bonds_service.get_sovereign_cds()
+
+
+@app.get("/api/bonds/curves-comparison")
+async def get_curves_comparison(countries: Optional[str] = None):
+    """
+    Get full yield curves for comparing multiple countries.
+    Optional: pass comma-separated country codes (e.g., US,DE,JP)
+    Defaults to US, DE, JP, GB, CN
+    """
+    country_list = countries.split(",") if countries else None
+    return global_bonds_service.get_yield_curves_comparison(country_list)
+
+
+@app.get("/api/bonds/regional-summary")
+async def get_regional_summary():
+    """
+    Get bond market summary grouped by region.
+    Includes average yields and changes for Americas, Europe, Asia.
+    """
+    return global_bonds_service.get_regional_summary()
+
+
+@app.get("/api/bonds/summary")
+async def get_bond_summary():
+    """
+    Get comprehensive global bond market summary.
+    Includes highest/lowest yields, risk levels, and regional data.
+    """
+    return global_bonds_service.get_bond_summary()
+
+
+# ============================================
 # FX MARKET ENDPOINTS
 # ============================================
 
@@ -651,6 +765,113 @@ async def analyze_fx(request: FXAnalysisRequest):
 
         return FXAnalysisResponse(**response_data)
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# ENHANCED FX SERVICE ENDPOINTS
+# ============================================
+
+@app.get("/api/fx/live-pairs")
+async def get_fx_live_pairs():
+    """
+    Get live rates for all major currency pairs.
+    Includes bid/ask, 24h high/low, and trend direction.
+    """
+    try:
+        return fx_service.get_major_pairs_live()
+    except Exception as e:
+        api_logger.error(f"Error fetching live pairs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/currency-strength")
+async def get_currency_strength():
+    """
+    Get currency strength index for major currencies.
+    Returns strength score (0-100) based on cross-pair performance.
+    """
+    try:
+        return fx_service.get_currency_strength()
+    except Exception as e:
+        api_logger.error(f"Error calculating currency strength: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/cross-rates")
+async def get_cross_rates():
+    """
+    Get cross rates matrix for all major currencies.
+    Returns NxN matrix of exchange rates.
+    """
+    try:
+        return fx_service.get_cross_rates_matrix()
+    except Exception as e:
+        api_logger.error(f"Error fetching cross rates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/carry-trades")
+async def get_carry_trades():
+    """
+    Get carry trade opportunities analysis.
+    Returns pairs sorted by risk-adjusted return.
+    """
+    try:
+        return fx_service.get_carry_trade_opportunities()
+    except Exception as e:
+        api_logger.error(f"Error calculating carry trades: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/rate-differentials")
+async def get_rate_differentials():
+    """
+    Get interest rate differentials for major pairs.
+    Shows which direction carry trade favors.
+    """
+    try:
+        return fx_service.get_interest_rate_differentials()
+    except Exception as e:
+        api_logger.error(f"Error fetching rate differentials: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/ppp-analysis")
+async def get_ppp_analysis():
+    """
+    Get PPP (Purchasing Power Parity) analysis.
+    Shows over/undervalued currencies relative to fair value.
+    """
+    try:
+        return fx_service.get_ppp_analysis()
+    except Exception as e:
+        api_logger.error(f"Error fetching PPP analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/central-bank-calendar")
+async def get_central_bank_calendar():
+    """
+    Get central bank meeting calendar and rate expectations.
+    """
+    try:
+        return fx_service.get_central_bank_calendar()
+    except Exception as e:
+        api_logger.error(f"Error fetching central bank calendar: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/fx/summary")
+async def get_fx_summary():
+    """
+    Get comprehensive FX market summary.
+    Includes DXY status, strongest/weakest currencies, best carry trade.
+    """
+    try:
+        return fx_service.get_fx_summary()
+    except Exception as e:
+        api_logger.error(f"Error fetching FX summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -897,6 +1118,41 @@ async def get_global_stock_data():
         vix=VIXData(**vix),
         equity_flows=[EquityFlowData(**f) for f in equity_flows],
     )
+
+
+@app.get("/api/stocks/cycle")
+async def get_market_cycle():
+    """
+    Get current market cycle phase and investment recommendations.
+    Uses economic indicators to determine cycle position.
+    """
+    return market_cycle_service.determine_cycle_phase()
+
+
+@app.get("/api/stocks/cycle/phases")
+async def get_cycle_phases():
+    """
+    Get information about all market cycle phases.
+    Includes characteristics, sector recommendations for each phase.
+    """
+    return market_cycle_service.get_all_phases()
+
+
+@app.get("/api/stocks/cycle/history")
+async def get_cycle_history(months: int = 12):
+    """
+    Get historical cycle phases for the past N months.
+    """
+    return market_cycle_service.get_cycle_history(months)
+
+
+@app.get("/api/stocks/cycle/transitions")
+async def get_cycle_transitions():
+    """
+    Get typical transition patterns between cycle phases.
+    Includes duration and trigger signals.
+    """
+    return market_cycle_service.get_cycle_transitions()
 
 
 @app.get("/api/analyze/stocks/cached")
@@ -2413,6 +2669,7 @@ from historical_engine import (
     find_parallel_past,
     generate_historical_context,
     get_crisis_scenarios,
+    get_available_eras,
     HISTORICAL_EVENTS,
 )
 
@@ -2532,14 +2789,30 @@ async def get_historical_parallels(
 
 
 @app.get("/api/history/crises")
-async def get_crisis_list(language: str = "en"):
+async def get_crisis_list(language: str = "en", era: str = "all"):
     """
     Get list of major financial crises with their characteristics.
     Useful for crisis simulation and historical education.
+
+    Args:
+        language: 'en' or 'ko'
+        era: Filter by era - 'ancient', 'medieval', 'early_modern', 'modern', or 'all'
     """
     try:
-        scenarios = get_crisis_scenarios(language)
-        return {"scenarios": scenarios}
+        scenarios = get_crisis_scenarios(language, era)
+        return {"scenarios": scenarios, "total": len(scenarios), "era_filter": era}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/history/eras")
+async def get_eras_list(language: str = "en"):
+    """
+    Get list of available historical eras with event counts.
+    """
+    try:
+        eras = get_available_eras(language)
+        return {"eras": eras}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2908,6 +3181,8 @@ def extract_key_themes_from_articles(articles: List[dict], language: str = "en")
     import re
     from collections import Counter
 
+    print(f"[Insights] Analyzing {len(articles)} articles, language={language}")
+
     # Define economic keywords for theme detection
     theme_keywords = {
         "inflation": ["inflation", "cpi", "price", "cost", "deflation"],
@@ -3008,6 +3283,10 @@ def extract_key_themes_from_articles(articles: List[dict], language: str = "en")
     key_themes = []
     max_count = sorted_themes[0][1] if sorted_themes else 1
 
+    print(f"[Insights] Analyzing {len(articles)} articles")
+    print(f"[Insights] Found {len(sorted_themes)} themes: {[t[0] for t in sorted_themes]}")
+    print(f"[Insights] Bullish: {bullish_score}, Bearish: {bearish_score} -> {overall_sentiment}")
+
     for theme_name, count in sorted_themes:
         # Determine theme sentiment based on context
         theme_text = " ".join([
@@ -3033,6 +3312,20 @@ def extract_key_themes_from_articles(articles: List[dict], language: str = "en")
             "relevance": round(count / max_count, 2),
             "related_articles": theme_articles.get(theme_name, [])
         })
+
+    # Fallback: if no themes detected, add a general market theme
+    if not key_themes:
+        print("[Insights] No themes detected, adding fallback theme")
+        fallback_theme = {
+            "theme": "Market Overview" if language != "ko" else "시장 개요",
+            "description": "General market analysis from multiple sources" if language != "ko" else "다양한 소스에서의 시장 분석",
+            "sentiment": overall_sentiment,
+            "relevance": 1.0,
+            "related_articles": [a.get('id', '') for a in articles]
+        }
+        key_themes.append(fallback_theme)
+
+    print(f"[Insights] Final key_themes count: {len(key_themes)}, sentiment: {overall_sentiment}")
 
     # Generate market implications
     if language == "ko":
@@ -3098,12 +3391,16 @@ async def analyze_multiple_articles(request: MultiArticleRequest):
         return MultiArticleResponse(**cached)
 
     try:
+        print(f"[Insights] Processing {len(request.articles)} articles for multi-analysis")
         result = extract_key_themes_from_articles(request.articles, request.language)
         save_cached_analysis(cache_key, result)
+        print(f"[Insights] Multi-analysis complete: {len(result.get('key_themes', []))} themes found")
         return MultiArticleResponse(**result)
     except Exception as e:
+        import traceback
         print(f"[ERROR] Multi-article analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 # ============================================

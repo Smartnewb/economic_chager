@@ -5,6 +5,10 @@ import dynamic from 'next/dynamic';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts';
 import Navigation from '@/components/Navigation';
 import { AnalysisTriggerButton, AnalysisPanel, AnalysisResult } from '@/components/ui';
+import GlobalYieldComparison from '@/components/bonds/GlobalYieldComparison';
+import YieldSpreadMatrix from '@/components/bonds/YieldSpreadMatrix';
+import GlobalCurveComparison from '@/components/bonds/GlobalCurveComparison';
+import SovereignRiskIndicator from '@/components/bonds/SovereignRiskIndicator';
 
 // Dynamic import for heavy chart components
 const LineChart = dynamic(
@@ -55,6 +59,7 @@ interface GlobalBondDataResponse {
 }
 
 type CompareOption = 'none' | '1m' | '3m' | '1y';
+type TabOption = 'us' | 'global' | 'curves' | 'risk';
 
 export default function BondsPage() {
     const [yieldData, setYieldData] = useState<YieldCurveData[]>([]);
@@ -70,6 +75,7 @@ export default function BondsPage() {
     const [previousDate, setPreviousDate] = useState<string>('');
     const [currentYield10Y, setCurrentYield10Y] = useState<number>(0);
     const [currentYield2Y, setCurrentYield2Y] = useState<number>(0);
+    const [activeTab, setActiveTab] = useState<TabOption>('us');
 
     useEffect(() => {
         fetchBondData();
@@ -230,8 +236,57 @@ export default function BondsPage() {
         <main className="min-h-screen w-screen bg-[#050505] text-white overflow-x-hidden flex flex-col">
             <Navigation />
 
-            {/* Add pt-16 to account for fixed nav on mobile */}
-            <div className="flex-1 p-3 sm:p-4 pt-20 sm:pt-20 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            {/* Tab Navigation */}
+            <div className="pt-20 px-3 sm:px-4">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-[#27272a]">
+                    <button
+                        onClick={() => setActiveTab('us')}
+                        className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t transition-colors whitespace-nowrap ${
+                            activeTab === 'us'
+                                ? 'bg-[#111116] text-white border border-[#27272a] border-b-[#111116]'
+                                : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        US Treasury
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('global')}
+                        className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t transition-colors whitespace-nowrap ${
+                            activeTab === 'global'
+                                ? 'bg-[#111116] text-white border border-[#27272a] border-b-[#111116]'
+                                : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        Global Yields
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('curves')}
+                        className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t transition-colors whitespace-nowrap ${
+                            activeTab === 'curves'
+                                ? 'bg-[#111116] text-white border border-[#27272a] border-b-[#111116]'
+                                : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        Curve Comparison
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('risk')}
+                        className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t transition-colors whitespace-nowrap ${
+                            activeTab === 'risk'
+                                ? 'bg-[#111116] text-white border border-[#27272a] border-b-[#111116]'
+                                : 'text-gray-500 hover:text-gray-300'
+                        }`}
+                    >
+                        Credit Risk
+                    </button>
+                </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 p-3 sm:p-4 overflow-y-auto">
+                {/* US Treasury Tab */}
+                {activeTab === 'us' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                 {/* Main Yield Curve Chart - Responsive height */}
                 <div className="col-span-1 lg:col-span-2 bg-[#111116] border border-[#27272a] rounded p-3 sm:p-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 sm:mb-4">
@@ -424,6 +479,30 @@ export default function BondsPage() {
                         subText="Get AI insights on yield curves and rate trends"
                     />
                 </div>
+                </div>
+                )}
+
+                {/* Global Yields Tab */}
+                {activeTab === 'global' && (
+                <div className="space-y-4">
+                    <GlobalYieldComparison />
+                    <YieldSpreadMatrix />
+                </div>
+                )}
+
+                {/* Curve Comparison Tab */}
+                {activeTab === 'curves' && (
+                <div className="space-y-4">
+                    <GlobalCurveComparison />
+                </div>
+                )}
+
+                {/* Credit Risk Tab */}
+                {activeTab === 'risk' && (
+                <div className="space-y-4">
+                    <SovereignRiskIndicator />
+                </div>
+                )}
             </div>
 
             {/* Analysis Panel */}

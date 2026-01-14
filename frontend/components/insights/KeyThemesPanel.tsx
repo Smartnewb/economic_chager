@@ -103,8 +103,20 @@ export default function KeyThemesPanel({
             </div>
           )}
 
+          {/* Empty Result State */}
+          {result && !isLoading && result.key_themes.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16">
+              <span className="text-4xl mb-4">📭</span>
+              <p className="text-gray-400 text-center">
+                {language === "ko"
+                  ? "분석할 수 있는 테마가 발견되지 않았습니다.\n다른 기사를 선택해 주세요."
+                  : "No themes could be extracted from the selected articles.\nTry selecting different articles."}
+              </p>
+            </div>
+          )}
+
           {/* Results */}
-          {result && !isLoading && (
+          {result && !isLoading && result.key_themes.length > 0 && (
             <div className="space-y-6">
               {/* Overall Sentiment */}
               <div
@@ -134,9 +146,19 @@ export default function KeyThemesPanel({
                   {language === "ko" ? "주요 테마" : "Key Themes"}
                 </h3>
                 <div className="space-y-3">
-                  {result.key_themes.map((theme, index) => (
-                    <ThemeCard key={index} theme={theme} language={language} />
-                  ))}
+                  {result.key_themes && result.key_themes.length > 0 ? (
+                    result.key_themes.map((theme, index) => (
+                      <ThemeCard key={index} theme={theme} language={language} />
+                    ))
+                  ) : (
+                    <div className="p-4 bg-[#1a1a24] rounded-xl border border-white/5 text-center">
+                      <span className="text-gray-500 text-sm">
+                        {language === "ko"
+                          ? "감지된 테마가 없습니다. 기사 내용이 충분하지 않을 수 있습니다."
+                          : "No specific themes detected. Article content may be insufficient."}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

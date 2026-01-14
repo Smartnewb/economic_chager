@@ -10,6 +10,7 @@ import Navigation from "@/components/Navigation";
 import AIHeadline from "@/components/weather/AIHeadline";
 import ModuleCards from "@/components/weather/ModuleCards";
 import CouncilDebate from "@/components/weather/CouncilDebate";
+import CycleTheoriesPanel from "@/components/dashboard/CycleTheoriesPanel";
 
 // Dynamically import the globe to avoid SSR issues
 const WeatherGlobe = dynamic(() => import("@/components/weather/WeatherGlobe"), {
@@ -92,7 +93,7 @@ export default function DashboardPage() {
             {/* Main Content */}
             <div className="relative z-10 pt-20">
                 {/* Hero Section: Globe + Headline */}
-                <section className="relative min-h-[70vh] flex flex-col items-center justify-center px-6">
+                <section className="relative min-h-[50vh] flex flex-col items-center justify-center px-6 pb-8">
                     {/* Globe Background */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-60">
                         <div className="w-full max-w-2xl aspect-square">
@@ -142,16 +143,10 @@ export default function DashboardPage() {
                         </button>
                     </div>
 
-                    {/* Scroll Indicator */}
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-                        <svg className="w-6 h-6 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                        </svg>
-                    </div>
                 </section>
 
                 {/* Dashboard Summary Cards */}
-                <section className="relative px-6 py-12">
+                <section className="relative px-6 py-8">
                     <div className="max-w-6xl mx-auto">
                         <h2 className="text-xl font-bold text-white mb-6 text-center">Market Snapshot</h2>
                         {dashboardLoading ? (
@@ -290,6 +285,14 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </section>
+
+                {/* Investment Cycle Theories Section */}
+                <section className="relative px-6 py-8">
+                    <div className="max-w-6xl mx-auto">
+                        <h2 className="text-xl font-bold text-white mb-6 text-center">Investment Cycle Analysis</h2>
+                        <CycleTheoriesPanel />
                     </div>
                 </section>
 

@@ -6,6 +6,7 @@ import { AnalysisTriggerButton, AnalysisPanel, AnalysisResult } from '@/componen
 import DrCopperIndicator from '@/components/economy/DrCopperIndicator';
 import PMIGauge from '@/components/economy/PMIGauge';
 import EconomicSurpriseIndicator from '@/components/economy/EconomicSurpriseIndicator';
+import CommodityInterpretation from '@/components/economy/CommodityInterpretation';
 import { CommodityData, PMIData } from '@/store/economyStore';
 
 interface Commodity {
@@ -404,6 +405,13 @@ export default function EconomyPage() {
                         <PMIGauge data={transformPMIToWidgetFormat(economyData.pmi_data)} />
                     )}
                 </div>
+
+                {/* Commodity Interpretation Guide */}
+                <CommodityInterpretation
+                    commoditySymbol={economyData.commodities[0]?.symbol}
+                    currentPrice={economyData.commodities[0]?.price}
+                    priceChange={economyData.commodities[0]?.change_pct}
+                />
 
                 <EconomicSurpriseIndicator />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

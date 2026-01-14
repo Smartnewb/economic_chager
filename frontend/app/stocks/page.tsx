@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { ResponsiveContainer, Tooltip } from 'recharts';
 import Navigation from '@/components/Navigation';
 import { AnalysisTriggerButton, AnalysisPanel, AnalysisResult } from '@/components/ui';
+import MarketCycleIndicator from '@/components/equity/MarketCycleIndicator';
 
 // Dynamic import for heavy Treemap component
 const Treemap = dynamic(
@@ -482,6 +483,11 @@ export default function StocksPage() {
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* Market Cycle Indicator */}
+                <div className="col-span-1 lg:col-span-2">
+                    <MarketCycleIndicator />
                 </div>
 
                 {/* Market Breadth */}
