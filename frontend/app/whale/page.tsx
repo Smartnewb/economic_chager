@@ -166,9 +166,11 @@ export default function WhalePage() {
     }, []);
 
     const fetchWhaleData = async () => {
+        const startTime = performance.now();
         try {
             setLoading(true);
 
+            const fetchStartTime = performance.now();
             const [alertsRes, radarRes, insiderRes, gurusRes, consensusRes] = await Promise.all([
                 fetch('http://localhost:8000/api/whale/alerts'),
                 fetch('http://localhost:8000/api/whale/radar'),
@@ -176,6 +178,8 @@ export default function WhalePage() {
                 fetch('http://localhost:8000/api/whale/guru'),
                 fetch('http://localhost:8000/api/whale/consensus?top_n=10'),
             ]);
+            const fetchEndTime = performance.now();
+            console.log(`[Whale] API fetch time: ${(fetchEndTime - fetchStartTime).toFixed(0)}ms`);
 
             const alertsData: WhaleAlertsResponse = await alertsRes.json();
             const radarDataRes = await radarRes.json();
@@ -268,6 +272,11 @@ export default function WhalePage() {
             );
 
             setError(null);
+            const totalTime = performance.now() - startTime;
+            console.log(`[Whale] Total load time: ${totalTime.toFixed(0)}ms (Target: < 2000ms)`);
+            if (totalTime > 2000) {
+                console.warn(`[Whale] ⚠️ Load time exceeded target: ${totalTime.toFixed(0)}ms > 2000ms`);
+            }
         } catch (err) {
             console.error('Failed to fetch whale data:', err);
             setError('Failed to connect to backend. Please ensure the server is running on port 8000.');
@@ -403,8 +412,67 @@ export default function WhalePage() {
 
     if (loading) {
         return (
-            <main className="h-screen w-screen bg-[#050505] text-white flex items-center justify-center">
-                <div className="text-gray-400">Loading whale data...</div>
+            <main className="h-screen w-screen bg-[#050505] text-white overflow-hidden flex flex-col">
+                <Navigation />
+                <div className="flex-1 overflow-auto p-4">
+                    {/* Header Skeleton */}
+                    <div className="mb-6">
+                        <div className="h-8 w-64 bg-gray-800 rounded animate-pulse mb-2"></div>
+                        <div className="h-4 w-96 bg-gray-800 rounded animate-pulse"></div>
+                    </div>
+
+                    {/* Tab Skeleton */}
+                    <div className="flex gap-2 mb-6 border-b border-[#27272a]">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="h-10 w-28 bg-gray-800 rounded animate-pulse"></div>
+                        ))}
+                    </div>
+
+                    {/* Content Skeleton Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* Alerts Skeleton */}
+                        <div className="bg-[#111116] border border-[#27272a] rounded-lg p-4">
+                            <div className="h-6 w-32 bg-gray-800 rounded animate-pulse mb-4"></div>
+                            <div className="space-y-3">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <div key={i} className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-gray-800 rounded-full animate-pulse"></div>
+                                        <div className="flex-1">
+                                            <div className="h-4 w-24 bg-gray-800 rounded animate-pulse mb-1"></div>
+                                            <div className="h-3 w-48 bg-gray-800 rounded animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Radar Skeleton */}
+                        <div className="bg-[#111116] border border-[#27272a] rounded-lg p-4">
+                            <div className="h-6 w-32 bg-gray-800 rounded animate-pulse mb-4"></div>
+                            <div className="h-48 bg-gray-800 rounded animate-pulse"></div>
+                        </div>
+
+                        {/* Insider Trades Skeleton */}
+                        <div className="bg-[#111116] border border-[#27272a] rounded-lg p-4 lg:col-span-2">
+                            <div className="h-6 w-40 bg-gray-800 rounded animate-pulse mb-4"></div>
+                            <div className="space-y-2">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <div key={i} className="flex items-center gap-4">
+                                        <div className="w-16 h-6 bg-gray-800 rounded animate-pulse"></div>
+                                        <div className="flex-1 h-4 bg-gray-800 rounded animate-pulse"></div>
+                                        <div className="w-20 h-6 bg-gray-800 rounded animate-pulse"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Loading Progress Indicator */}
+                    <div className="fixed bottom-4 right-4 bg-[#111116] border border-blue-500/30 rounded-lg p-3 flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+                        <span className="text-sm text-gray-400">Loading whale data...</span>
+                    </div>
+                </div>
             </main>
         );
     }
